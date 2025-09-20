@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "9090:9090"
+    environment:
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - DB_HOST=compliance_procedure_admin-postgres-1
+      - DB_PORT=5432
+      - DB_NAME=compliance_admin
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - ADMIN_DOCS_PATH=/app/admin_generated_docs
+    volumes:
+      # Mount admin portal's generated_docs directory
+      - ../compliance_procedure_admin/backend/generated_docs:/app/admin_generated_docs
+    networks:
+      - compliance_procedure_admin_compliance_sample
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8082:8082"
+    networks:
+      - compliance_procedure_admin_compliance_sample
+
+networks:
+  compliance_procedure_admin_compliance_sample:
+    external: true

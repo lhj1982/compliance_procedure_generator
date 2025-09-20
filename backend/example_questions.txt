@@ -1,0 +1,71 @@
+1) Control Name
+Monthly CDE Privileged Access Review
+2) Control Owner / Performer
+Role/Team: Identity & Access Management (IAM) — CDE
+Backup / Delegate: Platform IAM Lead (on-call)
+3) Frequency
+Cadence: Monthly
+Execution Window: Business days 1–5 each month (covering prior month’s activity)
+4) Purpose / PCI Risk Mitigation
+This control ensures privileged access to systems in the Cardholder Data Environment (CDE) is authorized, appropriate, and reviewed on a recurring basis. It mitigates the risk of unauthorized access, privilege creep, and orphaned accounts, supporting PCI DSS access control and governance (e.g., Req. 7/8) and relevant PCI PIN/P2PE expectations for strong access governance where PIN/CDE or P2PE components are in scope.
+5) Procedure Steps
+Preparation. Connect to corporate VPN and log into the PAM vault with the IAM-Reviewer role.
+Navigate. Open the “CDE Privileged Access Review” workspace in the IAM Portal → Reviews → CDE-PRIV-MONTHLY.
+Generate Population. Export current privileged principals (human & service) from:
+AD groups: CDE-Admins, CDE-DBA, CDE-RootDelegates
+Cloud roles: prod/*/Admin, prod/*/PrivOps
+Save export as CDE_Priv_Pop_<YYYYMM>.csv to the Evidence folder.
+Reconcile Ownership. For each principal, verify manager/owner, business justification, last approval date in the IAM Portal. Flag any missing/expired fields.
+Activity/Last-Use Check. Query SIEM dashboards “Privileged Logins — CDE” and “Privileged Commands — CDE” for last 90 days. Identify accounts with no activity or anomalous spikes (>3× baseline). Export screenshots/CSVs.
+Segregation of Duties (SoD). Run SoD policy set CDE-SOD-01 against the population. Capture the violation report.
+Decisioning. For each principal:
+Approve if justification is current (≤ 90 days), owner validated, activity appropriate, and no SoD violations.
+Revoke/Right-size if inactive >90 days, justification missing/expired, or SoD violated without compensating control.
+Execute Changes. Open change tickets in Jira using template IAM-CHANGE-CDE for each revoke/right-size and link to the review ticket. Implement group/role updates via approved change.
+Summarize & Submit. Complete the review checklist in Jira ticket PCI-CDE-PRIV-<YYYYMM> with counts (total reviewed, approved, revoked, right-sized, exceptions) and attach all evidence exports/screenshots.
+Approval. Route the Jira ticket to GRC Reviewer and CDE Platform Owner for sign-off.
+Archive Evidence. Move all artifacts to SharePoint › PCI › Evidence › CDE-Priv-Review › <YYYY>/<YYYYMM> and record the link in the Jira ticket.
+6) Tools & Systems
+IAM Portal — population, attestation, SoD checks
+Active Directory / Cloud IAM consoles — group & role membership
+PAM Vault — privileged session access (read-only for reviewers)
+SIEM (e.g., Splunk) — last-use and anomaly verification
+Jira — review ticketing and approvals
+SharePoint — evidence repository
+7) Access Requirements
+Roles: IAM-Reviewer (read), IAM-Admin (changes via approved tickets), SIEM-Read, AD-Read, Cloud-Read
+Secrets: Retrieved via PAM; no local storage of credentials
+Network: Corporate VPN; source IP ranges per firewall policy
+Folders: SharePoint Evidence library (contribute)
+8) Starting Point
+Primary Entry: IAM Portal → Reviews → CDE-PRIV-MONTHLY
+Alternate (BCP): If IAM Portal unavailable, request exports from AD/Cloud IAM via platform owners and attach manual CSVs to Jira.
+9) Checks & Criteria
+Authorization: Every privileged principal has named owner, business justification, and approval ≤90 days old.
+Activity: Last use within ≤90 days or documented exception.
+SoD: No violation of policy CDE-SOD-01; otherwise compensating control with risk acceptance by GRC.
+Completeness: Population includes all CDE systems (AD + Cloud roles) as per CMDB scope tag env=prod,scope=CDE.
+PCI Alignment: Supports PCI DSS requirements for least privilege and periodic access review (Req. 7/8); supports PCI PIN/P2PE access governance where those components are in scope.
+10) Failure Handling
+If missing owner/justification/approval: Mark Exception-Medium; open Jira IAM-EXC sub-task; require update within 5 business days.
+If inactive >90 days: Disable account within 1 business day unless exception approved by CDE Owner and GRC.
+If SoD violation: Remove conflicting role within 1 business day; if business-critical, initiate risk acceptance with compensating controls.
+Escalation Path: IAM L2 → CDE Platform Owner → Security Director.
+Verification: Post-change validation by reviewer; attach before/after membership screenshots; note ticket numbers.
+11) Additional Involvement
+Pre-approval required? Yes — Changes require CDE Platform Owner acknowledgment prior to execution.
+12) Approval / Sign-off
+Approver Role: GRC Reviewer & CDE Platform Owner
+Method: Jira workflow approval with electronic signature and timestamp
+SLA: 3 business days from submission
+13) Evidence Storage
+Location: SharePoint › PCI/Evidence/CDE-Priv-Review/<YYYY>/<YYYYMM>
+Structure/Naming: CDE_Priv_Pop_<YYYYMM>.csv, SIEM_LastUse_<YYYYMM>.png, SoD_Report_<YYYYMM>.pdf, Jira_<Ticket>.pdf
+Retention: Minimum 15 months
+Integrity: Library enforces versioning; edits require change control; checksum logged in Jira
+14) Work Location
+Performed by IAM — CDE team (distributed: UK & IN) during business hours Europe/London with overlap to IST.
+15) Dependencies
+Upstream: Identity Provisioning control (joiner/mover/leaver), CMDB scope accuracy, SIEM log onboarding for CDE assets
+Downstream: Quarterly control attestation, auditor sampling during PCI assessment
+BCP: Manual exports via AD/Cloud teams if IAM Portal outage >24h

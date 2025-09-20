@@ -1,0 +1,11 @@
+{
+  "name": "compliance-procedure-generator-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for compliance procedure generator",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python3 -m http.server 8082",
+    "start": "python3 -m http.server 8082"
+  },
+  "devDependencies": {}
+}

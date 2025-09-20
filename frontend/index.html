@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compliance Procedure Generator</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Main Page -->
+        <div id="main-page" class="page active">
+            <nav class="navbar">
+                <div class="nav-brand">Compliance Procedure Generator</div>
+            </nav>
+
+            <main class="main-layout">
+                <!-- Left Sidebar - Team Selection -->
+                <div class="sidebar">
+                    <div class="sidebar-header">
+                        <h3>Select Team</h3>
+                    </div>
+                    <div class="team-selection" id="team-selection">
+                        <div class="form-group">
+                            <label for="team-dropdown">Choose Team:</label>
+                            <select id="team-dropdown" name="team_id" required>
+                                <option value="">Loading teams...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Main Panel - Questions Form -->
+                <div class="main-panel">
+                    <div id="welcome-view" class="content-view active">
+                        <div class="welcome-message">
+                            <h2>Welcome to Compliance Procedure Generator</h2>
+                            <p>Select a team from the left panel to begin answering compliance questions</p>
+                        </div>
+                    </div>
+
+                    <div id="questions-view" class="content-view">
+                        <div class="procedure-header">
+                            <h2 id="selected-team-title">Compliance Questions</h2>
+                            <div class="procedure-meta">
+                                <span id="selected-team-name" class="meta-item"></span>
+                            </div>
+                        </div>
+
+                        <form id="compliance-form" class="questions-form">
+                            <div class="questions-container" id="questions-container">
+                                <!-- Questions will be dynamically inserted here -->
+                            </div>
+
+                            <div class="action-buttons">
+                                <button type="button" id="reset-btn" class="btn btn-secondary">Reset Form</button>
+                                <button type="submit" id="submit-btn" class="btn btn-primary">Submit Answers</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Success!</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Your compliance procedure document has been generated successfully!</p>
+                <div class="download-info">
+                    <p><strong>Document name:</strong> <span id="document-name"></span></p>
+                    <a id="download-link" href="#" class="btn btn-primary" download>Download Document</a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/app.js"></script>
+</body>
+</html>
