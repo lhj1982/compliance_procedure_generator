@@ -98,16 +98,20 @@ class ComplianceApp {
         this.teams = [];
         // Configure API base URL - works for both localhost and Docker
         this.apiBaseUrl = this.getApiBaseUrl();
+        console.log('Constructor - API Base URL set to:', this.apiBaseUrl);
         this.init();
     }
 
     getApiBaseUrl() {
         // For localhost development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('Detected localhost, using API URL: http://localhost:9090');
             return 'http://localhost:9090';
         }
         // For Docker or production - assume backend is on same host, different port
-        return `${window.location.protocol}//${window.location.hostname}:9090`;
+        const apiUrl = `${window.location.protocol}//${window.location.hostname}:9090`;
+        console.log('Detected non-localhost, using API URL:', apiUrl);
+        return apiUrl;
     }
 
     async init() {
@@ -117,7 +121,9 @@ class ComplianceApp {
 
     async loadTeams() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/api/teams`);
+            const teamsUrl = `${this.apiBaseUrl}/api/teams`;
+            console.log('Loading teams from URL:', teamsUrl);
+            const response = await fetch(teamsUrl);
             if (response.ok) {
                 this.teams = await response.json();
                 this.populateTeamDropdown();
@@ -289,7 +295,11 @@ class ComplianceApp {
         submitBtn.textContent = 'Generating Document...';
 
         try {
-            const response = await fetch(`${this.apiBaseUrl}/api/submit_answers`, {
+            const submitUrl = `${this.apiBaseUrl}/api/submit_answers`;
+            console.log('Submitting to URL:', submitUrl);
+            console.log('Form data:', formData);
+
+            const response = await fetch(submitUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
