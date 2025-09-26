@@ -8,8 +8,18 @@ import psycopg2
 import psycopg2.extras
 from openai import OpenAI
 from dotenv import load_dotenv
+import logging
+import sys
 
 load_dotenv()
+
+# Configure logging to stdout (Docker logs)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
 
 # Load API key and base URL from environment variables
 API_KEY = os.getenv("LLM_API_KEY")
@@ -109,6 +119,7 @@ DOCX_TEMPLATE_PATH = "Procedure.docx"  # Update path if needed
 
 @app.route("/", methods=["GET"])
 def health_check():
+    logger.info("Health check endpoint accessed")
     return jsonify({"status": "healthy", "service": "compliance-procedure-generator-api"})
 
 def create_docx_from_gpt(template_path, gpt_answer):
@@ -156,6 +167,7 @@ def download():
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
+"""
 # Example API endpoint
 @app.route('/api/generate_procedure', methods=['POST'])
 def generate_procedure():
@@ -183,6 +195,7 @@ def generate_procedure():
             )
             answer = response.choices[0].message.content
     return {"answer": answer}
+"""
 
 def get_db_connection():
     """Get database connection"""
@@ -190,7 +203,7 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except psycopg2.Error as e:
-        print(f"Database connection error: {e}")
+        logger.error(f"Database connection error: {e}")
         return None
 
 @app.route('/api/teams', methods=['GET'])
@@ -206,9 +219,10 @@ def get_teams():
         teams = cur.fetchall()
         cur.close()
         conn.close()
+        logger.info(f"Retrieved {len(teams)} teams from database")
         return jsonify([dict(team) for team in teams])
     except psycopg2.Error as e:
-        print(f"Database query error: {e}")
+        logger.error(f"Database query error: {e}")
         if conn:
             conn.close()
         return jsonify({'error': 'Failed to fetch teams'}), 500
@@ -229,11 +243,13 @@ def submit_answers():
             return jsonify({'error': 'Team ID and answers are required'}), 400
 
         # Convert answers to text format for AI processing
-        user_input = f"Team: {team_name}\n\n"
+        # user_input = f"Team: {team_name}\n\n"
+        user_input = ""
         for answer_data in answers.values():
             user_input += f"Q: {answer_data['question']}\n"
             user_input += f"A: {answer_data['answer']}\n\n"
 
+        # logger.info(f"User input for AI:\n{user_input}")
         # Generate document using AI
         template_prompt = INITIAL_PROMPT + "\n\n" + get_template_from_docx(DOCX_TEMPLATE_PATH)
 
@@ -281,11 +297,12 @@ def submit_answers():
                 cur.close()
                 conn.close()
             except psycopg2.Error as e:
-                print(f"Database upsert error: {e}")
+                logger.error(f"Database upsert error: {e}")
                 if conn:
                     conn.close()
 
         # Return success response with download info
+        logger.info(f"Successfully generated document: {document_name} for team_id: {team_id}")
         return jsonify({
             'success': True,
             'document_name': document_name,
@@ -294,7 +311,7 @@ def submit_answers():
         })
 
     except Exception as e:
-        print(f"Error processing submission: {e}")
+        logger.error(f"Error processing submission: {e}")
         return jsonify({'error': 'Failed to generate document'}), 500
 
 @app.route('/api/download/<filename>', methods=['GET'])
@@ -318,8 +335,9 @@ def download_generated_file(filename):
             mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
     except Exception as e:
-        print(f"Error downloading file: {e}")
+        logger.error(f"Error downloading file: {e}")
         return jsonify({'error': 'Failed to download file'}), 500
 
 if __name__ == "__main__":
+    logger.info("Starting Flask application on port 9090")
     app.run(debug=True, host='0.0.0.0', port=9090)
