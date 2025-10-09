@@ -127,3 +127,23 @@ dmypy.json
 
 # pytype static type analyzer
 .pytype/
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.*
+**/terraform.tfvars
+**/terraform.tfvars.json
+**/*.tfvars
+**/.terraformrc
+**/terraform.rc
+**/*.tfplan
+**/*.tfplan.binary
+**/crash.log
+**/crash.*.log
+**/.terraform.tfstate.lock.info
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json

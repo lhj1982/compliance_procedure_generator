@@ -1,0 +1,26 @@
+# Application terraform.tfvars example
+# This deploys the ECS services and ALB that can be updated frequently
+
+region      = "us-east-1"
+app_name    = "compliance-procedure-gen"
+environment = "dev"
+
+# AWS CLI profile
+aws_profile = "your-profile-name"
+
+# Existing VPC and networking
+vpc_id              = "vpc-xxxxxxxxxxxxx"
+private_subnet_ids  = ["subnet-xxxxxxxxxxxxx", "subnet-yyyyyyyyyyy"]
+public_subnet_ids   = ["subnet-zzzzzzzzzzzzz", "subnet-aaaaaaaaaaaaa"]
+
+# Infrastructure resource identifiers (get these from infrastructure outputs)
+db_instance_identifier       = "compliance-procedure-gen-db-dev"
+db_security_group_id        = "sg-xxxxxxxxxxxxx"
+s3_bucket_name              = "compliance-procedure-gen-documents-dev-xxxxxxxxxxxx"
+llm_api_key_secret_name     = "compliance-procedure-gen-llm-api-key-dev"
+db_password_secret_name     = "compliance-procedure-gen-db-password-dev"
+ecr_backend_repository_name = "compliance-procedure-gen/backend"
+ecr_frontend_repository_name = "compliance-procedure-gen/frontend"
+
+# LLM Configuration
+llm_base_url = "https://api.openai.com/v1"

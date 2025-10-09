@@ -10,6 +10,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import logging
 import sys
+from storage_handler import StorageHandler
 
 load_dotenv()
 
@@ -266,17 +267,11 @@ def submit_answers():
         # Create document
         doc = create_docx_from_gpt(DOCX_TEMPLATE_PATH, ai_answer)
 
-        # Save document with team_id naming convention to admin portal project
+        # Save document with team_id naming convention
         document_name = f"{team_id}_procedure_document.docx"
-        # Use mounted volume path in Docker, fallback to local path for development
-        admin_generated_docs_path = os.getenv('ADMIN_DOCS_PATH',
-            "/Users/jhuajun/projects/learnings/compliance_procedure_admin/backend/generated_docs")
-        document_path = os.path.join(admin_generated_docs_path, document_name)
 
-        # Ensure admin portal generated_docs directory exists
-        os.makedirs(admin_generated_docs_path, exist_ok=True)
-
-        doc.save(document_path)
+        # Use StorageHandler to save (works with both GCS and local)
+        document_path = StorageHandler.save_document(doc, document_name)
 
         # Save submission to database using upsert logic (insert or update if team already exists)
         conn = get_db_connection()
@@ -318,18 +313,18 @@ def submit_answers():
 def download_generated_file(filename):
     """Download generated document"""
     try:
-        # Security check - ensure filename is safe and exists
+        # Security check - ensure filename is safe
         safe_filename = secure_filename(filename)
-        # Use mounted volume path in Docker, fallback to local path for development
-        admin_generated_docs_path = os.getenv('ADMIN_DOCS_PATH',
-            "/Users/jhuajun/projects/learnings/compliance_procedure_admin/backend/generated_docs")
-        file_path = os.path.join(admin_generated_docs_path, safe_filename)
 
-        if not os.path.exists(file_path):
+        # Check if document exists
+        if not StorageHandler.document_exists(safe_filename):
             return jsonify({'error': 'File not found'}), 404
 
+        # Retrieve document from storage
+        file_stream = StorageHandler.get_document(safe_filename)
+
         return send_file(
-            file_path,
+            file_stream,
             as_attachment=True,
             download_name=safe_filename,
             mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"

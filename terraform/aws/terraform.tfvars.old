@@ -1,0 +1,20 @@
+# AWS Configuration
+region      = "eu-north-1"
+app_name    = "cp-gen"
+environment = "dev"
+
+# AWS CLI profile to use (from ~/.aws/credentials)
+aws_profile = "default"
+
+# Existing VPC and networking resources (use existing VPC and subnets)
+vpc_id              = "vpc-04e4448b3a2ed9fdc"
+private_subnet_ids  = ["subnet-0d8b40723a64275a7", "subnet-0755dcb04621834fe"]
+public_subnet_ids   = ["subnet-0ca84711caf88c449", "subnet-0bc9c0fdb4e82ef1e"]
+
+
+# Sensitive Variables (use environment variables or AWS Secrets Manager)
+llm_api_key = "b09fdcbb07d46c1922beddf21228519645a6cb31fecaad00a0b8d22e3ec10700"
+db_password = "postgres"
+
+# LLM Configuration
+llm_base_url = "https://api.openai.com/v1"

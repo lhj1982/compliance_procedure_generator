@@ -4,3 +4,5 @@ openai
 python-dotenv
 python-docx
 psycopg2-binary
+google-cloud-storage
+boto3
