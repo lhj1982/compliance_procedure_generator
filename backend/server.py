@@ -116,7 +116,9 @@ def extract_template_sections(docx_path):
             sections.append(para.text)
     return sections
 
-DOCX_TEMPLATE_PATH = "Procedure.docx"  # Update path if needed
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DOCX_TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "Procedure.docx")
 
 @app.route("/", methods=["GET"])
 def health_check():
