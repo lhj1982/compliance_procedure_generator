@@ -68,6 +68,7 @@ lerna-debug.log*
 generated_docs/
 *.docx
 *.pdf
+!**/Procedure.docx
 
 # Logs
 *.log
