@@ -177,10 +177,10 @@ aws configure
 # Enter your AWS Access Key ID, Secret Access Key, and default region
 ```
 
-### Step 2: Configure Terraform Variables
+### Step 2: Deploy Infrastructure (VPC, Subnets, RDS, S3, Secrets, ECR)
 
 ```bash
-cd terraform/aws
+cd terraform/aws/infrastructure
 cp terraform.tfvars.example terraform.tfvars
 ```
 
@@ -200,22 +200,20 @@ export TF_VAR_llm_api_key="your-openai-api-key"
 export TF_VAR_db_password="your-secure-database-password"
 ```
 
-### Step 3: Deploy Infrastructure with Terraform
+Initialize and apply infrastructure:
 
 ```bash
-# Initialize Terraform
 terraform init
-
-# Review deployment plan
 terraform plan
-
-# Deploy infrastructure
 terraform apply
 ```
 
-**Note:** Terraform will create ECR repositories. The repository URLs will be in the outputs.
+**Note:**  
+After completion, copy the outputs (VPC ID, subnet IDs, RDS endpoint, S3 bucket name, secret ARN, ECR repo URLs) for use in the application deployment.
 
-### Step 4: Build and Push Docker Images
+---
+
+### Step 3: Build and Push Docker Images
 
 ```bash
 # Get ECR login credentials
@@ -225,32 +223,59 @@ AWS_REGION=us-east-1
 aws ecr get-login-password --region $AWS_REGION | \
   docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-# Build backend image
-
-for ECS fargate, we need to build a manifest for linux/amd64.
-```
-build --platform linux/amd64 -t <your-ecr-repo>:<tag> .
-docker push <your-ecr-repo>:<tag>
-```
-
+# Build backend image for ECS Fargate (linux/amd64)
 cd ../../backend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
+docker buildx build --platform linux/amd64 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
 
 # Build frontend image
 cd ../frontend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest .
-
-# Push images
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
+docker buildx build --platform linux/amd64 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest .
 docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest
 ```
+
+---
+
+### Step 4: Deploy Application (ECS, ALB, Task Definitions, Services)
+
+```bash
+cd ../../terraform/aws/application
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Edit `terraform.tfvars` and **paste the outputs from the infrastructure step**:
+
+```hcl
+region      = "us-east-1"
+app_name    = "cp-gen"
+environment = "dev"
+vpc_id              = "<paste from infra output>"
+private_subnet_ids  = ["<paste from infra output>", "<paste from infra output>"]
+public_subnet_ids   = ["<paste from infra output>", "<paste from infra output>"]
+db_instance_identifier = "<paste from infra output>"
+db_security_group_id   = "<paste from infra output>"
+s3_bucket_name         = "<paste from infra output>"
+cp_gen_secrets_arn     = "<paste from infra output>"
+ecr_backend_repository_name = "<paste from infra output>"
+ecr_frontend_repository_name = "<paste from infra output>"
+llm_base_url = "https://api.openai.com/v1"
+```
+
+Initialize and apply application resources:
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+---
 
 ### Step 5: Update ECS Services
 
 After pushing new images, update the ECS services to use the new images:
 
 ```bash
-# Force new deployment
 aws ecs update-service \
   --cluster cp-gen-cluster \
   --service cp-gen-backend-service \
@@ -264,6 +289,8 @@ aws ecs update-service \
   --region $AWS_REGION
 ```
 
+---
+
 ### Step 6: Access Your Application
 
 Get the Application Load Balancer DNS name:
@@ -276,12 +303,14 @@ terraform output backend_url
 
 Access your application at: `http://<alb-dns-name>`
 
+---
+
 ### Step 7: Initialize Database Schema
 
 Connect to your RDS instance:
 
 ```bash
-# Get database endpoint
+# Get database endpoint from infra output
 DB_ENDPOINT=$(terraform output -raw db_endpoint)
 
 # Connect using psql (requires PostgreSQL client installed)
@@ -292,6 +321,14 @@ psql -h $DB_ENDPOINT -U postgres -d compliance_admin
 \i /path/to/compliance_procedure_admin/schema/002_teams_table.sql
 \i /path/to/compliance_procedure_admin/schema/003_update_procedures_table.sql
 ```
+
+---
+
+**Summary:**  
+- Deploy **infrastructure** first (`terraform/aws/infrastructure`), then **application** (`terraform/aws/application`).
+- Pass outputs from infrastructure as inputs to application.
+- Build and push Docker images after infra deploy, before application deploy.
+- Update ECS services as needed.
 
 ---
 
@@ -510,3 +547,37 @@ terraform destroy
 6. **Set up development/staging/production environments**
 
 For questions or issues, please refer to the main README.md or open an issue in the repository.
+
+---
+
+## Bastion Host (Jump Server)
+
+A Bastion host is deployed in the public subnet to provide secure access to resources in private subnets (such as the RDS PostgreSQL database).  
+It uses AWS SSM Session Manager for secure, passwordless access—no need to expose SSH to the internet.
+
+**Purpose:**
+- Allows you to securely connect to the RDS database in private subnets for debugging, migrations, or manual queries.
+- Uses SSM Session Manager (no SSH keys required).
+- Minimal cost (`t3.micro` instance).
+
+**How to use:**
+
+1. **Start an SSM session:**
+   ```bash
+   aws ssm start-session --target <bastion-instance-id> --region <your-region>
+   ```
+
+2. **Connect to RDS from the Bastion:**
+   ```bash
+   psql -h <rds-endpoint> -U postgres -d <db-name>
+   ```
+
+**Notes:**
+- The Bastion host security group allows outbound access to RDS on port 5432.
+- The RDS security group allows inbound access from the Bastion host security group.
+- The Bastion host is only accessible via SSM (SSH is disabled by default for security).
+
+---
+
+**Tip:**  
+Terminate the Bastion host when not needed to save costs.

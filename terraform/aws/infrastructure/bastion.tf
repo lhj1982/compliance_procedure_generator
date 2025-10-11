@@ -42,6 +42,16 @@ resource "aws_security_group" "bastion" {
   }
 }
 
+resource "aws_security_group_rule" "rds_from_bastion" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.bastion.id
+  description              = "Allow Bastion host to access RDS PostgreSQL"
+}
+
 resource "aws_instance" "bastion" {
   ami           = data.aws_ami.amazon_linux.id
   instance_type = "t3.micro" # Minimal cost, eligible for free tier
