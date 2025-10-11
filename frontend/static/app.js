@@ -96,13 +96,18 @@ class ComplianceApp {
     constructor() {
         this.selectedTeam = null;
         this.teams = [];
-        // Configure API base URL - works for both localhost and Docker
+        // Configure API base URL - works for ECS/prod and local
         this.apiBaseUrl = this.getApiBaseUrl();
         console.log('Constructor - API Base URL set to:', this.apiBaseUrl);
         this.init();
     }
 
     getApiBaseUrl() {
+        // Prefer BACKEND_URL from environment if set (ECS/prod)
+        if (typeof BACKEND_URL !== "undefined" && BACKEND_URL) {
+            console.log('Using BACKEND_URL from environment:', BACKEND_URL);
+            return BACKEND_URL;
+        }
         // For localhost development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             console.log('Detected localhost, using API URL: http://localhost:9090');

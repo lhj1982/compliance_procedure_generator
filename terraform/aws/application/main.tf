@@ -108,10 +108,10 @@ resource "aws_lb" "main" {
   name               = "${var.app_name}-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnet_ids
+  security_groups    = [aws_security_group.alb.id]
 
-  enable_deletion_protection = false
+  idle_timeout       = 120 # Increase to 120 seconds (or as needed)
 
   tags = {
     Name        = "${var.app_name}-alb"

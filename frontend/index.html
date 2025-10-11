@@ -83,6 +83,10 @@
         </div>
     </div>
 
+    <!-- This is to set the variable for app.js to recognize, no need for docker ENV setup -->
+    <script>
+        var BACKEND_URL = "http://cp-gen-alb-1491716419.eu-north-1.elb.amazonaws.com";
+    </script>
     <script src="static/app.js"></script>
 </body>
 </html>
