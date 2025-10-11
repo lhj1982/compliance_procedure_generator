@@ -28,16 +28,6 @@ output "s3_bucket_arn" {
   value       = aws_s3_bucket.documents.arn
 }
 
-output "llm_api_key_secret_arn" {
-  description = "LLM API Key secret ARN"
-  value       = aws_secretsmanager_secret.cp_llm_api_key.arn
-}
-
-output "db_password_secret_arn" {
-  description = "Database password secret ARN"
-  value       = aws_secretsmanager_secret.cp_db_password.arn
-}
-
 output "ecr_backend_repository_url" {
   description = "ECR repository URL for backend"
   value       = aws_ecr_repository.backend.repository_url
@@ -46,4 +36,34 @@ output "ecr_backend_repository_url" {
 output "ecr_frontend_repository_url" {
   description = "ECR repository URL for frontend"
   value       = aws_ecr_repository.frontend.repository_url
+}
+
+output "vpc_id" {
+  description = "VPC ID"
+  value       = aws_vpc.main.id
+}
+
+output "public_subnet_a_id" {
+  description = "Public subnet A ID"
+  value       = aws_subnet.public_a.id
+}
+
+output "public_subnet_b_id" {
+  description = "Public subnet B ID"
+  value       = aws_subnet.public_b.id
+}
+
+output "private_subnet_a_id" {
+  description = "Private subnet A ID"
+  value       = aws_subnet.private_a.id
+}
+
+output "private_subnet_b_id" {
+  description = "Private subnet B ID"
+  value       = aws_subnet.private_b.id
+}
+
+output "cp_gen_secrets_arn" {
+  description = "ARN of the combined Secrets Manager secret"
+  value       = aws_secretsmanager_secret.cp_gen_secrets.arn
 }

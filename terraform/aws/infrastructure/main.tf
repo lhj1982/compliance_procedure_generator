@@ -20,13 +20,13 @@ data "aws_caller_identity" "current" {}
 resource "aws_security_group" "rds" {
   name        = "${var.app_name}-rds-sg"
   description = "Security group for RDS PostgreSQL"
-  vpc_id      = var.vpc_id
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
   tags = {
@@ -38,7 +38,10 @@ resource "aws_security_group" "rds" {
 # RDS PostgreSQL
 resource "aws_db_subnet_group" "main" {
   name       = "${var.app_name}-db-subnet-group"
-  subnet_ids = var.private_subnet_ids
+  subnet_ids = [
+    aws_subnet.private_a.id,
+    aws_subnet.private_b.id
+  ]
 
   tags = {
     Name        = "${var.app_name}-db-subnet-group"
@@ -100,22 +103,12 @@ resource "aws_s3_bucket_public_access_block" "documents" {
 }
 
 # Secrets Manager
-resource "aws_secretsmanager_secret" "cp_llm_api_key" {
-  name        = "${var.app_name}-llm-api-key-${var.environment}"
-  description = "LLM API Key for document generation"
+resource "aws_secretsmanager_secret" "cp_gen_secrets" {
+  name        = "${var.app_name}-secrets-${var.environment}"
+  description = "Secret containing both LLM API Key and DB password"
 
   tags = {
-    Name        = "${var.app_name}-llm-api-key"
-    Environment = var.environment
-  }
-}
-
-resource "aws_secretsmanager_secret" "cp_db_password" {
-  name        = "${var.app_name}-db-password-${var.environment}"
-  description = "Database password"
-
-  tags = {
-    Name        = "${var.app_name}-db-password"
+    Name        = "${var.app_name}-gen-secrets"
     Environment = var.environment
   }
 }

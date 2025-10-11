@@ -91,7 +91,7 @@ Edit `terraform.tfvars`:
 ```hcl
 project_id  = "your-gcp-project-id"
 region      = "us-central1"
-app_name    = "compliance-procedure-gen"
+app_name    = "cp-gen"
 environment = "dev"
 llm_base_url = "https://api.openai.com/v1"
 ```
@@ -114,15 +114,15 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 
 # Build backend image
 cd ../../backend
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest .
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest .
 
 # Build frontend image
 cd ../frontend
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/frontend:latest .
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/frontend:latest .
 
 # Push images
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/frontend:latest
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/frontend:latest
 ```
 
 ### Step 4: Deploy Infrastructure with Terraform
@@ -188,7 +188,7 @@ Edit `terraform.tfvars`:
 
 ```hcl
 region      = "us-east-1"
-app_name    = "compliance-procedure-gen"
+app_name    = "cp-gen"
 environment = "dev"
 llm_base_url = "https://api.openai.com/v1"
 ```
@@ -226,16 +226,23 @@ aws ecr get-login-password --region $AWS_REGION | \
   docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
 # Build backend image
+
+for ECS fargate, we need to build a manifest for linux/amd64.
+```
+build --platform linux/amd64 -t <your-ecr-repo>:<tag> .
+docker push <your-ecr-repo>:<tag>
+```
+
 cd ../../backend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest .
+docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
 
 # Build frontend image
 cd ../frontend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/frontend:latest .
+docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest .
 
 # Push images
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/frontend:latest
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest
 ```
 
 ### Step 5: Update ECS Services
@@ -245,14 +252,14 @@ After pushing new images, update the ECS services to use the new images:
 ```bash
 # Force new deployment
 aws ecs update-service \
-  --cluster compliance-procedure-gen-cluster \
-  --service compliance-procedure-gen-backend-service \
+  --cluster cp-gen-cluster \
+  --service cp-gen-backend-service \
   --force-new-deployment \
   --region $AWS_REGION
 
 aws ecs update-service \
-  --cluster compliance-procedure-gen-cluster \
-  --service compliance-procedure-gen-frontend-service \
+  --cluster cp-gen-cluster \
+  --service cp-gen-frontend-service \
   --force-new-deployment \
   --region $AWS_REGION
 ```
@@ -394,11 +401,11 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 ```bash
 # Check ECS service events
 aws ecs describe-services \
-  --cluster compliance-procedure-gen-cluster \
-  --services compliance-procedure-gen-backend-service
+  --cluster cp-gen-cluster \
+  --services cp-gen-backend-service
 
 # Check task logs in CloudWatch
-aws logs tail /ecs/compliance-procedure-gen/backend --follow
+aws logs tail /ecs/cp-gen/backend --follow
 ```
 
 **Database connection timeout:**
@@ -436,8 +443,8 @@ aws logs tail /ecs/compliance-procedure-gen/backend --follow
 ```bash
 # Rebuild and push images
 cd backend
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest .
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest .
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest
 
 # Cloud Run will automatically deploy new image on next revision
 ```
@@ -447,13 +454,13 @@ docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-
 ```bash
 # Rebuild and push images
 cd backend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest .
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest
+docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
 
 # Force ECS service update
 aws ecs update-service \
-  --cluster compliance-procedure-gen-cluster \
-  --service compliance-procedure-gen-backend-service \
+  --cluster cp-gen-cluster \
+  --service cp-gen-backend-service \
   --force-new-deployment \
   --region $AWS_REGION
 ```

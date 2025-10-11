@@ -18,12 +18,8 @@ data "aws_db_instance" "postgres" {
   db_instance_identifier = var.db_instance_identifier
 }
 
-data "aws_secretsmanager_secret" "llm_api_key" {
-  name = var.llm_api_key_secret_name
-}
-
-data "aws_secretsmanager_secret" "db_password" {
-  name = var.db_password_secret_name
+data "aws_secretsmanager_secret" "secret_manager" {
+  name = var.secret_manager_name
 }
 
 data "aws_s3_bucket" "documents" {
@@ -258,8 +254,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
         "secretsmanager:GetSecretValue"
       ]
       Resource = [
-        data.aws_secretsmanager_secret.llm_api_key.arn,
-        data.aws_secretsmanager_secret.db_password.arn
+        data.aws_secretsmanager_secret.secret_manager.arn
       ]
     }]
   })
@@ -359,8 +354,8 @@ resource "aws_ecs_task_definition" "backend" {
     ]
 
     secrets = [
-      { name = "DB_PASSWORD", valueFrom = "${data.aws_secretsmanager_secret.db_password.arn}::" },
-      { name = "LLM_API_KEY", valueFrom = "${data.aws_secretsmanager_secret.llm_api_key.arn}::" }
+      { name = "DB_PASSWORD", valueFrom = "${data.aws_secretsmanager_secret.secret_manager.arn}:db_password::" },
+      { name = "LLM_API_KEY", valueFrom = "${data.aws_secretsmanager_secret.secret_manager.arn}:api_key::" }
     ]
 
     logConfiguration = {

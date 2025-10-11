@@ -59,13 +59,8 @@ variable "s3_bucket_name" {
   type        = string
 }
 
-variable "llm_api_key_secret_name" {
-  description = "Name of the LLM API key secret in Secrets Manager"
-  type        = string
-}
-
-variable "db_password_secret_name" {
-  description = "Name of the database password secret in Secrets Manager"
+variable "secret_manager_name" {
+  description = "Name of the Secrets Manager"
   type        = string
 }
 
