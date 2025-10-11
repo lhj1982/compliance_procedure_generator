@@ -13,6 +13,11 @@ vpc_id              = "vpc-xxxxxxxxxxxxx"
 private_subnet_ids  = ["subnet-xxxxxxxxxxxxx", "subnet-yyyyyyyyyyy"]
 public_subnet_ids   = ["subnet-zzzzzzzzzzzzz", "subnet-aaaaaaaaaaaaa"]
 
+# ALB info
+gen_alb_arn = "arn:aws:elasticloadbalancing:eu-north-1:268255856831:loadbalancer/app/cp-gen-alb/d429d2d363a1a098"
+gen_alb_dns_name = "cp-gen-alb-1090278658.eu-north-1.elb.amazonaws.com"
+gen_alb_security_group = "sg-02eed9801c65d9b2f"
+
 # Infrastructure resource identifiers (get these from infrastructure outputs)
 db_instance_identifier       = "compliance-procedure-gen-db-dev"
 db_security_group_id        = "sg-xxxxxxxxxxxxx"

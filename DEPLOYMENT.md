@@ -177,7 +177,7 @@ aws configure
 # Enter your AWS Access Key ID, Secret Access Key, and default region
 ```
 
-### Step 2: Deploy Infrastructure (VPC, Subnets, RDS, S3, Secrets, ECR)
+### Step 2: Deploy Infrastructure (VPC, Subnets, RDS, S3, Secrets, ECR, ALB)
 
 ```bash
 cd terraform/aws/infrastructure
@@ -209,7 +209,7 @@ terraform apply
 ```
 
 **Note:**  
-After completion, copy the outputs (VPC ID, subnet IDs, RDS endpoint, S3 bucket name, secret ARN, ECR repo URLs) for use in the application deployment.
+After completion, copy the outputs (VPC ID, subnet IDs, RDS endpoint, S3 bucket name, secret ARN, ECR repo URLs, ALB ARN, ALB DNS name) for use in the application deployment.
 
 ---
 
@@ -236,10 +236,10 @@ docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/fronten
 
 ---
 
-### Step 4: Deploy Application (ECS, ALB, Task Definitions, Services)
+### Step 4: Deploy Application (ECS, Target Groups, Listeners, Task Definitions, Services)
 
 ```bash
-cd ../../terraform/aws/application
+cd ../../terraform/aws/cp_generator
 cp terraform.tfvars.example terraform.tfvars
 ```
 
@@ -255,9 +255,11 @@ public_subnet_ids   = ["<paste from infra output>", "<paste from infra output>"]
 db_instance_identifier = "<paste from infra output>"
 db_security_group_id   = "<paste from infra output>"
 s3_bucket_name         = "<paste from infra output>"
-cp_gen_secrets_arn     = "<paste from infra output>"
+secret_manager_name    = "<paste from infra output>"
 ecr_backend_repository_name = "<paste from infra output>"
 ecr_frontend_repository_name = "<paste from infra output>"
+gen_alb_arn            = "<paste from infra output>"
+gen_alb_security_group = "<paste from infra output>"
 llm_base_url = "https://api.openai.com/v1"
 ```
 

@@ -104,7 +104,7 @@ resource "aws_s3_bucket_public_access_block" "documents" {
 
 # Secrets Manager
 resource "aws_secretsmanager_secret" "cp_gen_secrets" {
-  name        = "${var.app_name}-secrets-${var.environment}"
+  name        = "${var.app_name}-gen-secrets-${var.environment}"
   description = "Secret containing both LLM API Key and DB password"
 
   tags = {
@@ -114,8 +114,9 @@ resource "aws_secretsmanager_secret" "cp_gen_secrets" {
 }
 
 # ECR Repositories
-resource "aws_ecr_repository" "backend" {
-  name                 = "${var.app_name}/backend"
+# cp-gen ECRs
+resource "aws_ecr_repository" "gen_backend" {
+  name                 = "${var.app_name}-gen/backend"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -123,13 +124,13 @@ resource "aws_ecr_repository" "backend" {
   }
 
   tags = {
-    Name        = "${var.app_name}-backend"
+    Name        = "${var.app_name}-gen-backend"
     Environment = var.environment
   }
 }
 
-resource "aws_ecr_repository" "frontend" {
-  name                 = "${var.app_name}/frontend"
+resource "aws_ecr_repository" "gen_frontend" {
+  name                 = "${var.app_name}-gen/frontend"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -137,13 +138,13 @@ resource "aws_ecr_repository" "frontend" {
   }
 
   tags = {
-    Name        = "${var.app_name}-frontend"
+    Name        = "${var.app_name}-gen-frontend"
     Environment = var.environment
   }
 }
 
-resource "aws_ecr_lifecycle_policy" "backend" {
-  repository = aws_ecr_repository.backend.name
+resource "aws_ecr_lifecycle_policy" "gen_backend" {
+  repository = aws_ecr_repository.gen_backend.name
 
   policy = jsonencode({
     rules = [{
@@ -161,8 +162,75 @@ resource "aws_ecr_lifecycle_policy" "backend" {
   })
 }
 
-resource "aws_ecr_lifecycle_policy" "frontend" {
-  repository = aws_ecr_repository.frontend.name
+resource "aws_ecr_lifecycle_policy" "gen_frontend" {
+  repository = aws_ecr_repository.gen_frontend.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 5 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 5
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })
+}
+
+# cp-admin ECRs
+resource "aws_ecr_repository" "admin_backend" {
+  name                 = "${var.app_name}-admin/backend"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name        = "${var.app_name}-admin-backend"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecr_repository" "admin_frontend" {
+  name                 = "${var.app_name}-admin/frontend"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name        = "${var.app_name}-admin-frontend"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "admin_backend" {
+  repository = aws_ecr_repository.admin_backend.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 5 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 5
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "admin_frontend" {
+  repository = aws_ecr_repository.admin_frontend.name
 
   policy = jsonencode({
     rules = [{

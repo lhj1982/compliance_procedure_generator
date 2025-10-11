@@ -7,7 +7,7 @@ variable "region" {
 variable "app_name" {
   description = "Application name"
   type        = string
-  default     = "compliance-procedure-gen"
+  default     = "cp-admin"
 }
 
 variable "environment" {

@@ -2,7 +2,7 @@
 # This creates the foundational resources that persist across deployments
 
 region      = "us-east-1"
-app_name    = "compliance-procedure-gen"
+app_name    = "cp"
 environment = "dev"
 
 # AWS CLI profile
