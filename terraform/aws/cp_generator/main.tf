@@ -35,9 +35,9 @@ data "aws_ecr_repository" "frontend" {
 }
 
 # Security Groups
-resource "aws_security_group" "ecs_tasks" {
-  name        = "${var.app_name}-ecs-tasks-sg"
-  description = "Security group for ECS tasks"
+resource "aws_security_group" "frontend" {
+  name        = "${var.app_name}-frontend-sg"
+  description = "Security group for frontend"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -55,7 +55,32 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   tags = {
-    Name        = "${var.app_name}-ecs-tasks-sg"
+    Name        = "${var.app_name}-frontend-sg"
+    Environment = var.environment
+  }
+}
+
+resource "aws_security_group" "backend" {
+  name        = "${var.app_name}-backend-sg"
+  description = "Security group for backend"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 9090
+    to_port         = 9090
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.app_name}-backend-sg"
     Environment = var.environment
   }
 }
@@ -66,38 +91,38 @@ resource "aws_security_group_rule" "rds_from_ecs" {
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
-  source_security_group_id = aws_security_group.ecs_tasks.id
+  source_security_group_id = aws_security_group.backend.id
   security_group_id        = var.db_security_group_id
   description              = "Allow ECS tasks to access RDS"
 }
 
 # Target Groups
-resource "aws_lb_target_group" "backend" {
-  name        = "${var.app_name}-backend-tg"
-  port        = 9090
-  protocol    = "HTTP"
-  vpc_id      = var.vpc_id
-  target_type = "ip"
+#resource "aws_lb_target_group" "backend" {
+#  name        = "${var.app_name}-backend-tg"
+#  port        = 9090
+#  protocol    = "HTTP"
+#  vpc_id      = var.vpc_id
+#  target_type = "ip"
 
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
-  }
+#  health_check {
+#    enabled             = true
+#    healthy_threshold   = 2
+#    interval            = 30
+#    matcher             = "200"
+#    path                = "/"
+#    port                = "traffic-port"
+#    protocol            = "HTTP"
+#    timeout             = 5
+#    unhealthy_threshold = 2
+#  }
 
-  deregistration_delay = 30
+#  deregistration_delay = 30
 
-  tags = {
-    Name        = "${var.app_name}-backend-tg"
-    Environment = var.environment
-  }
-}
+#  tags = {
+#    Name        = "${var.app_name}-backend-tg"
+#    Environment = var.environment
+#  }
+#}
 
 resource "aws_lb_target_group" "frontend" {
   name        = "${var.app_name}-frontend-tg"
@@ -137,21 +162,21 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-resource "aws_lb_listener_rule" "backend" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 100
+#resource "aws_lb_listener_rule" "backend" {
+#  listener_arn = aws_lb_listener.http.arn
+#  priority     = 100
 
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
+#  action {
+#    type             = "forward"
+#    target_group_arn = aws_lb_target_group.backend.arn
+#  }
 
-  condition {
-    path_pattern {
-      values = ["/api/*"]
-    }
-  }
-}
+#  condition {
+#    path_pattern {
+#      values = ["/api/*"]
+#    }
+#  }
+#}
 
 # ECS Cluster
 resource "aws_ecs_cluster" "main" {
@@ -344,7 +369,7 @@ resource "aws_ecs_task_definition" "frontend" {
     }]
 
     environment = [
-      { name = "BACKEND_URL", value = "http://${var.gen_alb_dns_name}" }
+      { name = "BACKEND_URL", value = "http://backend.${var.app_name}.local:9090" }
     ]
 
     logConfiguration = {
@@ -373,17 +398,20 @@ resource "aws_ecs_service" "backend" {
 
   network_configuration {
     subnets          = var.private_subnet_ids
-    security_groups  = [aws_security_group.ecs_tasks.id]
+    security_groups  = [aws_security_group.backend.id]
     assign_public_ip = false
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.backend.arn
-    container_name   = "backend"
-    container_port   = 9090
+  service_registries {
+    registry_arn = aws_service_discovery_service.backend.arn
   }
+ # load_balancer {
+ #   target_group_arn = aws_lb_target_group.backend.arn
+ #   container_name   = "backend"
+ #   container_port   = 9090
+ # }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_service_discovery_service.backend]
 
   tags = {
     Name        = "${var.app_name}-backend-service"
@@ -399,9 +427,9 @@ resource "aws_ecs_service" "frontend" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = var.private_subnet_ids
-    security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+    subnets          = var.public_subnet_ids
+    security_groups  = [aws_security_group.frontend.id]
+    assign_public_ip = true
   }
 
   load_balancer {
@@ -415,5 +443,28 @@ resource "aws_ecs_service" "frontend" {
   tags = {
     Name        = "${var.app_name}-frontend-service"
     Environment = var.environment
+  }
+}
+
+# Add a Cloud Map Private DNS Namespace
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name        = "${var.app_name}.local"
+  description = "Private DNS namespace for ${var.app_name}"
+  vpc         = var.vpc_id
+}
+
+# Register the Backend Service with Cloud Map
+resource "aws_service_discovery_service" "backend" {
+  name = "backend"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      type = "A"
+      ttl  = 10
+    }
+    routing_policy = "WEIGHTED"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
   }
 }
