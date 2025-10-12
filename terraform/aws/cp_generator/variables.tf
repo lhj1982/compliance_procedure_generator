@@ -75,14 +75,29 @@ variable "ecr_frontend_repository_name" {
 }
 
 variable "gen_alb_dns_name" {
-  description = "ALB ID for the cp-gen application"
+  description = "Public ALB DNS name for the cp-gen frontend"
   type        = string
 }
 variable "gen_alb_arn" {
-  description = "ALB ARN for the cp-gen application"
+  description = "Public ALB ARN for the cp-gen frontend"
   type        = string
 }
 variable "gen_alb_security_group" {
-  description = "ALB Security Group for the cp-gen application"
+  description = "Public ALB Security Group for the cp-gen frontend"
+  type        = string
+}
+
+variable "gen_internal_alb_arn" {
+  description = "Internal ALB ARN for the cp-gen backend"
+  type        = string
+}
+
+variable "gen_internal_alb_dns_name" {
+  description = "Internal ALB DNS name for the cp-gen backend"
+  type        = string
+}
+
+variable "gen_internal_alb_security_group" {
+  description = "Internal ALB Security Group for the cp-gen backend"
   type        = string
 }

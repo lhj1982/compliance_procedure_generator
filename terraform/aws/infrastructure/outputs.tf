@@ -101,3 +101,18 @@ output "gen_alb_security_group" {
   description = "Security group for the generator Application Load Balancer"
   value       = aws_security_group.gen_alb.id
 }
+
+output "gen_internal_alb_arn" {
+  description = "ARN of the internal ALB for backend"
+  value       = aws_lb.gen_internal_alb.arn
+}
+
+output "gen_internal_alb_dns_name" {
+  description = "DNS name of the internal ALB for backend"
+  value       = aws_lb.gen_internal_alb.dns_name
+}
+
+output "gen_internal_alb_security_group" {
+  description = "Security group for the internal ALB"
+  value       = aws_security_group.gen_internal_alb.id
+}

@@ -69,7 +69,7 @@ resource "aws_security_group" "backend" {
     from_port       = 9090
     to_port         = 9090
     protocol        = "tcp"
-    security_groups = [aws_security_group.frontend.id]
+    security_groups = [var.gen_internal_alb_security_group]  # Accept traffic from INTERNAL ALB only
   }
 
   egress {
@@ -96,33 +96,45 @@ resource "aws_security_group_rule" "rds_from_ecs" {
   description              = "Allow ECS tasks to access RDS"
 }
 
+# Allow frontend ECS tasks to access internal ALB
+resource "aws_security_group_rule" "frontend_to_internal_alb" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.frontend.id
+  security_group_id        = var.gen_internal_alb_security_group
+  description              = "Allow frontend to access internal ALB for backend API"
+}
+
 # Target Groups
-#resource "aws_lb_target_group" "backend" {
-#  name        = "${var.app_name}-backend-tg"
-#  port        = 9090
-#  protocol    = "HTTP"
-#  vpc_id      = var.vpc_id
-#  target_type = "ip"
+# Backend target group for INTERNAL ALB
+resource "aws_lb_target_group" "backend" {
+  name        = "${var.app_name}-backend-tg"
+  port        = 9090
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
 
-#  health_check {
-#    enabled             = true
-#    healthy_threshold   = 2
-#    interval            = 30
-#    matcher             = "200"
-#    path                = "/"
-#    port                = "traffic-port"
-#    protocol            = "HTTP"
-#    timeout             = 5
-#    unhealthy_threshold = 2
-#  }
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
 
-#  deregistration_delay = 30
+  deregistration_delay = 30
 
-#  tags = {
-#    Name        = "${var.app_name}-backend-tg"
-#    Environment = var.environment
-#  }
-#}
+  tags = {
+    Name        = "${var.app_name}-backend-tg"
+    Environment = var.environment
+  }
+}
 
 resource "aws_lb_target_group" "frontend" {
   name        = "${var.app_name}-frontend-tg"
@@ -151,6 +163,7 @@ resource "aws_lb_target_group" "frontend" {
   }
 }
 
+# Public ALB Listener (for frontend only)
 resource "aws_lb_listener" "http" {
   load_balancer_arn = var.gen_alb_arn
   port              = "80"
@@ -162,21 +175,17 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-#resource "aws_lb_listener_rule" "backend" {
-#  listener_arn = aws_lb_listener.http.arn
-#  priority     = 100
+# Internal ALB Listener (for backend only)
+resource "aws_lb_listener" "internal_http" {
+  load_balancer_arn = var.gen_internal_alb_arn
+  port              = "80"
+  protocol          = "HTTP"
 
-#  action {
-#    type             = "forward"
-#    target_group_arn = aws_lb_target_group.backend.arn
-#  }
-
-#  condition {
-#    path_pattern {
-#      values = ["/api/*"]
-#    }
-#  }
-#}
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+}
 
 # ECS Cluster
 resource "aws_ecs_cluster" "main" {
@@ -369,7 +378,7 @@ resource "aws_ecs_task_definition" "frontend" {
     }]
 
     environment = [
-      { name = "BACKEND_URL", value = "http://backend.${var.app_name}.local:9090" }
+      { name = "BACKEND_INTERNAL_URL", value = "http://${var.gen_internal_alb_dns_name}" }
     ]
 
     logConfiguration = {
@@ -402,16 +411,18 @@ resource "aws_ecs_service" "backend" {
     assign_public_ip = false
   }
 
-  service_registries {
-    registry_arn = aws_service_discovery_service.backend.arn
+  load_balancer {
+    target_group_arn = aws_lb_target_group.backend.arn
+    container_name   = "backend"
+    container_port   = 9090
   }
- # load_balancer {
- #   target_group_arn = aws_lb_target_group.backend.arn
- #   container_name   = "backend"
- #   container_port   = 9090
- # }
 
-  depends_on = [aws_service_discovery_service.backend]
+  # Service discovery not needed - using internal ALB for routing
+  # service_registries {
+  #   registry_arn = aws_service_discovery_service.backend.arn
+  # }
+
+  depends_on = [aws_lb_listener.internal_http]
 
   tags = {
     Name        = "${var.app_name}-backend-service"
@@ -447,24 +458,24 @@ resource "aws_ecs_service" "frontend" {
 }
 
 # Add a Cloud Map Private DNS Namespace
-resource "aws_service_discovery_private_dns_namespace" "main" {
-  name        = "${var.app_name}.local"
-  description = "Private DNS namespace for ${var.app_name}"
-  vpc         = var.vpc_id
-}
+#resource "aws_service_discovery_private_dns_namespace" "main" {
+#  name        = "${var.app_name}.local"
+#  description = "Private DNS namespace for ${var.app_name}"
+#  vpc         = var.vpc_id
+#}
 
 # Register the Backend Service with Cloud Map
-resource "aws_service_discovery_service" "backend" {
-  name = "backend"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      type = "A"
-      ttl  = 10
-    }
-    routing_policy = "WEIGHTED"
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
-}
+#resource "aws_service_discovery_service" "backend" {
+#  name = "backend"
+#  dns_config {
+#    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+#    dns_records {
+#      type = "A"
+#      ttl  = 10
+#    }
+#    routing_policy = "WEIGHTED"
+#  }
+#  health_check_custom_config {
+#    failure_threshold = 1
+#  }
+#}

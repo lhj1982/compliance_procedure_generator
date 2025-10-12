@@ -85,7 +85,7 @@
 
     <!-- This is to set the variable for app.js to recognize, no need for docker ENV setup -->
     <script>
-        var BACKEND_URL = "http://backend.cp-gen.local:9090";
+        var BACKEND_URL = "";  // Empty string uses relative path - Nginx will proxy /api/* to internal backend ALB
     </script>
     <script src="static/app.js"></script>
 </body>

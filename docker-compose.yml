@@ -22,6 +22,8 @@ services:
     build: ./frontend
     ports:
       - "8082:8082"
+    environment:
+      - BACKEND_INTERNAL_URL=http://backend:9090
     networks:
       - compliance_procedure_admin_compliance_sample
 

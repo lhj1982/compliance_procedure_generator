@@ -177,7 +177,7 @@ aws configure
 # Enter your AWS Access Key ID, Secret Access Key, and default region
 ```
 
-### Step 2: Deploy Infrastructure (VPC, Subnets, RDS, S3, Secrets, ECR, ALB)
+### Step 2: Deploy Infrastructure (VPC, Subnets, RDS, S3, Secrets, ECR, Public ALB, Internal ALB)
 
 ```bash
 cd terraform/aws/infrastructure
@@ -208,12 +208,19 @@ terraform plan
 terraform apply
 ```
 
-**Note:**  
-After completion, copy the outputs (VPC ID, subnet IDs, RDS endpoint, S3 bucket name, secret ARN, ECR repo URLs, ALB ARN, ALB DNS name) for use in the application deployment.
+**Note:**
+After completion, copy the outputs including:
+- VPC ID, subnet IDs
+- RDS endpoint, S3 bucket name, secret ARN
+- ECR repo URLs
+- **Public ALB** (for frontend): ARN, DNS name, security group
+- **Internal ALB** (for backend - private): ARN, DNS name, security group
 
 ---
 
 ### Step 3: Build and Push Docker Images
+
+**Important:** The frontend now uses **Nginx as a reverse proxy** to route `/api/*` requests to the internal backend ALB.
 
 ```bash
 # Get ECR login credentials
@@ -228,7 +235,7 @@ cd ../../backend
 docker buildx build --platform linux/amd64 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
 docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
 
-# Build frontend image
+# Build frontend image (now with Nginx reverse proxy)
 cd ../frontend
 docker buildx build --platform linux/amd64 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest .
 docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest
@@ -258,8 +265,17 @@ s3_bucket_name         = "<paste from infra output>"
 secret_manager_name    = "<paste from infra output>"
 ecr_backend_repository_name = "<paste from infra output>"
 ecr_frontend_repository_name = "<paste from infra output>"
+
+# Public ALB (for frontend)
 gen_alb_arn            = "<paste from infra output>"
+gen_alb_dns_name       = "<paste from infra output>"
 gen_alb_security_group = "<paste from infra output>"
+
+# Internal ALB (for backend - private)
+gen_internal_alb_arn            = "<paste from infra output>"
+gen_internal_alb_dns_name       = "<paste from infra output>"
+gen_internal_alb_security_group = "<paste from infra output>"
+
 llm_base_url = "https://api.openai.com/v1"
 ```
 
@@ -457,6 +473,33 @@ aws logs tail /ecs/cp-gen/backend --follow
 - Verify container port mappings (9090 for backend, 8082 for frontend)
 - Review CloudWatch logs for application errors
 
+**Frontend cannot reach backend (Internal ALB issues):**
+```bash
+# Verify internal ALB exists and is healthy
+aws elbv2 describe-load-balancers --names cp-gen-internal-alb
+
+# Check backend target health on internal ALB
+aws elbv2 describe-target-health --target-group-arn <backend-tg-arn>
+
+# Verify security group allows frontend → internal ALB
+aws ec2 describe-security-groups --group-ids <internal-alb-sg>
+
+# Check Nginx logs for proxy errors
+aws logs tail /ecs/cp-gen/frontend --follow | grep -i proxy
+
+# Verify BACKEND_INTERNAL_URL environment variable is set
+aws ecs describe-tasks \
+  --cluster cp-gen-cluster \
+  --tasks <frontend-task-id> \
+  | jq '.tasks[].containers[].environment[] | select(.name=="BACKEND_INTERNAL_URL")'
+```
+
+**502 Bad Gateway from Nginx:**
+- Verify `BACKEND_INTERNAL_URL` is correctly set in frontend task definition
+- Check internal ALB DNS resolves within VPC (use bastion or SSM session)
+- Ensure backend ECS tasks are registered with internal ALB target group
+- Review Nginx error logs for upstream connection issues
+
 ### General Issues
 
 **Out of memory errors:**
@@ -526,6 +569,55 @@ terraform destroy
 
 ---
 
+## AWS Architecture: Internal ALB for Backend Security
+
+### Overview
+
+The AWS deployment uses a **dual-ALB architecture** to ensure the backend API is not exposed to the internet:
+
+```
+Internet
+    ↓
+Public ALB (Frontend only)
+    ↓
+Frontend ECS (Nginx + React) - Public Subnet
+    ↓ (Nginx proxies /api/* internally)
+Internal ALB (Backend only) - Private Subnet
+    ↓
+Backend ECS - Private Subnet
+```
+
+### Security Benefits
+
+✅ **Backend API completely private** - No internet access
+✅ **Network-level isolation** - Only frontend can reach backend
+✅ **Zero trust from browser** - Users cannot bypass frontend
+✅ **Nginx reverse proxy** - Frontend proxies API requests
+
+### How It Works
+
+1. **User browses to** `http://<public-alb>/`
+   - Public ALB routes to Frontend ECS
+   - Nginx serves static React app
+
+2. **Browser makes API call** to `http://<public-alb>/api/teams`
+   - Request goes to Frontend ECS (Nginx)
+   - Nginx proxies to `http://<internal-alb>/api/teams`
+   - Internal ALB routes to Backend ECS
+   - Response flows back through same path
+
+3. **Direct backend access blocked**
+   - Internal ALB has no public DNS
+   - Security groups restrict to frontend SG only
+   - Browser cannot reach backend directly
+
+### Components
+
+- **Public ALB**: Exposes port 80/443 to internet, routes to frontend
+- **Internal ALB**: Private DNS only, routes `/api/*` to backend
+- **Frontend Nginx**: Reverse proxy for API calls to internal ALB
+- **Backend ECS**: Completely isolated in private subnet
+
 ## Security Considerations
 
 1. **Never commit `.env` or `terraform.tfvars` files** containing secrets
@@ -536,6 +628,7 @@ terraform destroy
 6. **Enable audit logging** in both GCP and AWS
 7. **Regularly rotate credentials** and API keys
 8. **Use least-privilege IAM policies**
+9. **Backend API is private** - Internal ALB ensures no direct internet access to backend
 
 ---
 
