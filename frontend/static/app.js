@@ -114,7 +114,7 @@ class ComplianceApp {
             return 'http://localhost:9090';
         }
         // For Docker or production - assume backend is on same host, different port
-        const apiUrl = `${window.location.protocol}//${window.location.hostname}:9090`;
+        const apiUrl = `${window.location.protocol}//${window.location.hostname}`;
         console.log('Detected non-localhost, using API URL:', apiUrl);
         return apiUrl;
     }
