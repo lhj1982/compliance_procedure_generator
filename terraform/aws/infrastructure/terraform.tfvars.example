@@ -2,16 +2,11 @@
 # This creates the foundational resources that persist across deployments
 
 region      = "us-east-1"
-app_name    = "compliance-procedure-gen"
+app_name    = "cp"
 environment = "dev"
 
 # AWS CLI profile
 aws_profile = "your-profile-name"
-
-# Existing VPC and networking
-vpc_id              = "vpc-xxxxxxxxxxxxx"
-vpc_cidr            = "10.0.0.0/16"
-private_subnet_ids  = ["subnet-xxxxxxxxxxxxx", "subnet-yyyyyyyyyyy"]
 
 # Secrets
 llm_api_key = "your-openai-api-key-here"

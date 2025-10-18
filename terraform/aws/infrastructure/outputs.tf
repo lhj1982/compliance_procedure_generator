@@ -28,22 +28,91 @@ output "s3_bucket_arn" {
   value       = aws_s3_bucket.documents.arn
 }
 
-output "llm_api_key_secret_arn" {
-  description = "LLM API Key secret ARN"
-  value       = aws_secretsmanager_secret.cp_llm_api_key.arn
+output "ecr_gen_backend_repository_url" {
+  description = "ECR repository URL for gen backend"
+  value       = aws_ecr_repository.gen_backend.repository_url
 }
 
-output "db_password_secret_arn" {
-  description = "Database password secret ARN"
-  value       = aws_secretsmanager_secret.cp_db_password.arn
+output "ecr_gen_frontend_repository_url" {
+  description = "ECR repository URL for gen frontend"
+  value       = aws_ecr_repository.gen_frontend.repository_url
 }
 
-output "ecr_backend_repository_url" {
-  description = "ECR repository URL for backend"
-  value       = aws_ecr_repository.backend.repository_url
+output "ecr_admin_backend_repository_url" {
+  description = "ECR repository URL for adminbackend"
+  value       = aws_ecr_repository.admin_backend.repository_url
 }
 
-output "ecr_frontend_repository_url" {
-  description = "ECR repository URL for frontend"
-  value       = aws_ecr_repository.frontend.repository_url
+output "ecr_admin_frontend_repository_url" {
+  description = "ECR repository URL for admin frontend"
+  value       = aws_ecr_repository.admin_frontend.repository_url
+}
+
+output "vpc_id" {
+  description = "VPC ID"
+  value       = aws_vpc.main.id
+}
+
+output "public_subnet_a_id" {
+  description = "Public subnet A ID"
+  value       = aws_subnet.public_a.id
+}
+
+output "public_subnet_b_id" {
+  description = "Public subnet B ID"
+  value       = aws_subnet.public_b.id
+}
+
+output "private_subnet_a_id" {
+  description = "Private subnet A ID"
+  value       = aws_subnet.private_a.id
+}
+
+output "private_subnet_b_id" {
+  description = "Private subnet B ID"
+  value       = aws_subnet.private_b.id
+}
+
+output "cp_gen_secrets_arn" {
+  description = "ARN of the combined Secrets Manager secret"
+  value       = aws_secretsmanager_secret.cp_gen_secrets.arn
+}
+
+output "gen_alb_arn" {
+  value = aws_lb.gen_alb.arn
+}
+
+output "gen_alb_dns_name" {
+  description = "DNS name of the generator Application Load Balancer"
+  value = aws_lb.gen_alb.dns_name
+}
+
+output "gen_backend_url" {
+  description = "Generator Backend API URL"
+  value       = "http://${aws_lb.gen_alb.dns_name}/api"
+}
+
+output "gen_frontend_url" {
+  description = "Frontend URL"
+  value       = "http://${aws_lb.gen_alb.dns_name}"
+}
+
+output "gen_alb_security_group" {
+  description = "Security group for the generator Application Load Balancer"
+  value       = aws_security_group.gen_alb.id
+}
+
+output "gen_internal_alb_arn" {
+  description = "ARN of the internal ALB for backend"
+  value       = aws_lb.gen_internal_alb.arn
+}
+
+output "gen_internal_alb_dns_name" {
+  description = "DNS name of the internal ALB for backend"
+  value       = aws_lb.gen_internal_alb.dns_name
+}
+
+output "gen_internal_alb_security_group" {
+  description = "Security group for the internal ALB"
+  value       = aws_security_group.gen_internal_alb.id
 }

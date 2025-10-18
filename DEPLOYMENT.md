@@ -91,7 +91,7 @@ Edit `terraform.tfvars`:
 ```hcl
 project_id  = "your-gcp-project-id"
 region      = "us-central1"
-app_name    = "compliance-procedure-gen"
+app_name    = "cp-gen"
 environment = "dev"
 llm_base_url = "https://api.openai.com/v1"
 ```
@@ -114,15 +114,15 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 
 # Build backend image
 cd ../../backend
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest .
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest .
 
 # Build frontend image
 cd ../frontend
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/frontend:latest .
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/frontend:latest .
 
 # Push images
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/frontend:latest
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/frontend:latest
 ```
 
 ### Step 4: Deploy Infrastructure with Terraform
@@ -177,10 +177,10 @@ aws configure
 # Enter your AWS Access Key ID, Secret Access Key, and default region
 ```
 
-### Step 2: Configure Terraform Variables
+### Step 2: Deploy Infrastructure (VPC, Subnets, RDS, S3, Secrets, ECR, Public ALB, Internal ALB)
 
 ```bash
-cd terraform/aws
+cd terraform/aws/infrastructure
 cp terraform.tfvars.example terraform.tfvars
 ```
 
@@ -188,7 +188,7 @@ Edit `terraform.tfvars`:
 
 ```hcl
 region      = "us-east-1"
-app_name    = "compliance-procedure-gen"
+app_name    = "cp-gen"
 environment = "dev"
 llm_base_url = "https://api.openai.com/v1"
 ```
@@ -200,22 +200,27 @@ export TF_VAR_llm_api_key="your-openai-api-key"
 export TF_VAR_db_password="your-secure-database-password"
 ```
 
-### Step 3: Deploy Infrastructure with Terraform
+Initialize and apply infrastructure:
 
 ```bash
-# Initialize Terraform
 terraform init
-
-# Review deployment plan
 terraform plan
-
-# Deploy infrastructure
 terraform apply
 ```
 
-**Note:** Terraform will create ECR repositories. The repository URLs will be in the outputs.
+**Note:**
+After completion, copy the outputs including:
+- VPC ID, subnet IDs
+- RDS endpoint, S3 bucket name, secret ARN
+- ECR repo URLs
+- **Public ALB** (for frontend): ARN, DNS name, security group
+- **Internal ALB** (for backend - private): ARN, DNS name, security group
 
-### Step 4: Build and Push Docker Images
+---
+
+### Step 3: Build and Push Docker Images
+
+**Important:** The frontend now uses **Nginx as a reverse proxy** to route `/api/*` requests to the internal backend ALB.
 
 ```bash
 # Get ECR login credentials
@@ -225,37 +230,84 @@ AWS_REGION=us-east-1
 aws ecr get-login-password --region $AWS_REGION | \
   docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-# Build backend image
+# Build backend image for ECS Fargate (linux/amd64)
 cd ../../backend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest .
+docker buildx build --platform linux/amd64 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
 
-# Build frontend image
+# Build frontend image (now with Nginx reverse proxy)
 cd ../frontend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/frontend:latest .
-
-# Push images
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/frontend:latest
+docker buildx build --platform linux/amd64 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest .
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/frontend:latest
 ```
+
+---
+
+### Step 4: Deploy Application (ECS, Target Groups, Listeners, Task Definitions, Services)
+
+```bash
+cd ../../terraform/aws/cp_generator
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Edit `terraform.tfvars` and **paste the outputs from the infrastructure step**:
+
+```hcl
+region      = "us-east-1"
+app_name    = "cp-gen"
+environment = "dev"
+vpc_id              = "<paste from infra output>"
+private_subnet_ids  = ["<paste from infra output>", "<paste from infra output>"]
+public_subnet_ids   = ["<paste from infra output>", "<paste from infra output>"]
+db_instance_identifier = "<paste from infra output>"
+db_security_group_id   = "<paste from infra output>"
+s3_bucket_name         = "<paste from infra output>"
+secret_manager_name    = "<paste from infra output>"
+ecr_backend_repository_name = "<paste from infra output>"
+ecr_frontend_repository_name = "<paste from infra output>"
+
+# Public ALB (for frontend)
+gen_alb_arn            = "<paste from infra output>"
+gen_alb_dns_name       = "<paste from infra output>"
+gen_alb_security_group = "<paste from infra output>"
+
+# Internal ALB (for backend - private)
+gen_internal_alb_arn            = "<paste from infra output>"
+gen_internal_alb_dns_name       = "<paste from infra output>"
+gen_internal_alb_security_group = "<paste from infra output>"
+
+llm_base_url = "https://api.openai.com/v1"
+```
+
+Initialize and apply application resources:
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+---
 
 ### Step 5: Update ECS Services
 
 After pushing new images, update the ECS services to use the new images:
 
 ```bash
-# Force new deployment
 aws ecs update-service \
-  --cluster compliance-procedure-gen-cluster \
-  --service compliance-procedure-gen-backend-service \
+  --cluster cp-gen-cluster \
+  --service cp-gen-backend-service \
   --force-new-deployment \
   --region $AWS_REGION
 
 aws ecs update-service \
-  --cluster compliance-procedure-gen-cluster \
-  --service compliance-procedure-gen-frontend-service \
+  --cluster cp-gen-cluster \
+  --service cp-gen-frontend-service \
   --force-new-deployment \
   --region $AWS_REGION
 ```
+
+---
 
 ### Step 6: Access Your Application
 
@@ -269,12 +321,14 @@ terraform output backend_url
 
 Access your application at: `http://<alb-dns-name>`
 
+---
+
 ### Step 7: Initialize Database Schema
 
 Connect to your RDS instance:
 
 ```bash
-# Get database endpoint
+# Get database endpoint from infra output
 DB_ENDPOINT=$(terraform output -raw db_endpoint)
 
 # Connect using psql (requires PostgreSQL client installed)
@@ -285,6 +339,14 @@ psql -h $DB_ENDPOINT -U postgres -d compliance_admin
 \i /path/to/compliance_procedure_admin/schema/002_teams_table.sql
 \i /path/to/compliance_procedure_admin/schema/003_update_procedures_table.sql
 ```
+
+---
+
+**Summary:**  
+- Deploy **infrastructure** first (`terraform/aws/infrastructure`), then **application** (`terraform/aws/application`).
+- Pass outputs from infrastructure as inputs to application.
+- Build and push Docker images after infra deploy, before application deploy.
+- Update ECS services as needed.
 
 ---
 
@@ -394,11 +456,11 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 ```bash
 # Check ECS service events
 aws ecs describe-services \
-  --cluster compliance-procedure-gen-cluster \
-  --services compliance-procedure-gen-backend-service
+  --cluster cp-gen-cluster \
+  --services cp-gen-backend-service
 
 # Check task logs in CloudWatch
-aws logs tail /ecs/compliance-procedure-gen/backend --follow
+aws logs tail /ecs/cp-gen/backend --follow
 ```
 
 **Database connection timeout:**
@@ -410,6 +472,33 @@ aws logs tail /ecs/compliance-procedure-gen/backend --follow
 - Check ECS task health in target groups
 - Verify container port mappings (9090 for backend, 8082 for frontend)
 - Review CloudWatch logs for application errors
+
+**Frontend cannot reach backend (Internal ALB issues):**
+```bash
+# Verify internal ALB exists and is healthy
+aws elbv2 describe-load-balancers --names cp-gen-internal-alb
+
+# Check backend target health on internal ALB
+aws elbv2 describe-target-health --target-group-arn <backend-tg-arn>
+
+# Verify security group allows frontend → internal ALB
+aws ec2 describe-security-groups --group-ids <internal-alb-sg>
+
+# Check Nginx logs for proxy errors
+aws logs tail /ecs/cp-gen/frontend --follow | grep -i proxy
+
+# Verify BACKEND_INTERNAL_URL environment variable is set
+aws ecs describe-tasks \
+  --cluster cp-gen-cluster \
+  --tasks <frontend-task-id> \
+  | jq '.tasks[].containers[].environment[] | select(.name=="BACKEND_INTERNAL_URL")'
+```
+
+**502 Bad Gateway from Nginx:**
+- Verify `BACKEND_INTERNAL_URL` is correctly set in frontend task definition
+- Check internal ALB DNS resolves within VPC (use bastion or SSM session)
+- Ensure backend ECS tasks are registered with internal ALB target group
+- Review Nginx error logs for upstream connection issues
 
 ### General Issues
 
@@ -436,8 +525,8 @@ aws logs tail /ecs/compliance-procedure-gen/backend --follow
 ```bash
 # Rebuild and push images
 cd backend
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest .
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-repo/backend:latest
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest .
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/cp-gen-repo/backend:latest
 
 # Cloud Run will automatically deploy new image on next revision
 ```
@@ -447,13 +536,13 @@ docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/compliance-procedure-gen-
 ```bash
 # Rebuild and push images
 cd backend
-docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest .
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/compliance-procedure-gen/backend:latest
+docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest .
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cp-gen/backend:latest
 
 # Force ECS service update
 aws ecs update-service \
-  --cluster compliance-procedure-gen-cluster \
-  --service compliance-procedure-gen-backend-service \
+  --cluster cp-gen-cluster \
+  --service cp-gen-backend-service \
   --force-new-deployment \
   --region $AWS_REGION
 ```
@@ -480,6 +569,55 @@ terraform destroy
 
 ---
 
+## AWS Architecture: Internal ALB for Backend Security
+
+### Overview
+
+The AWS deployment uses a **dual-ALB architecture** to ensure the backend API is not exposed to the internet:
+
+```
+Internet
+    ↓
+Public ALB (Frontend only)
+    ↓
+Frontend ECS (Nginx + React) - Public Subnet
+    ↓ (Nginx proxies /api/* internally)
+Internal ALB (Backend only) - Private Subnet
+    ↓
+Backend ECS - Private Subnet
+```
+
+### Security Benefits
+
+✅ **Backend API completely private** - No internet access
+✅ **Network-level isolation** - Only frontend can reach backend
+✅ **Zero trust from browser** - Users cannot bypass frontend
+✅ **Nginx reverse proxy** - Frontend proxies API requests
+
+### How It Works
+
+1. **User browses to** `http://<public-alb>/`
+   - Public ALB routes to Frontend ECS
+   - Nginx serves static React app
+
+2. **Browser makes API call** to `http://<public-alb>/api/teams`
+   - Request goes to Frontend ECS (Nginx)
+   - Nginx proxies to `http://<internal-alb>/api/teams`
+   - Internal ALB routes to Backend ECS
+   - Response flows back through same path
+
+3. **Direct backend access blocked**
+   - Internal ALB has no public DNS
+   - Security groups restrict to frontend SG only
+   - Browser cannot reach backend directly
+
+### Components
+
+- **Public ALB**: Exposes port 80/443 to internet, routes to frontend
+- **Internal ALB**: Private DNS only, routes `/api/*` to backend
+- **Frontend Nginx**: Reverse proxy for API calls to internal ALB
+- **Backend ECS**: Completely isolated in private subnet
+
 ## Security Considerations
 
 1. **Never commit `.env` or `terraform.tfvars` files** containing secrets
@@ -490,6 +628,7 @@ terraform destroy
 6. **Enable audit logging** in both GCP and AWS
 7. **Regularly rotate credentials** and API keys
 8. **Use least-privilege IAM policies**
+9. **Backend API is private** - Internal ALB ensures no direct internet access to backend
 
 ---
 
@@ -503,3 +642,37 @@ terraform destroy
 6. **Set up development/staging/production environments**
 
 For questions or issues, please refer to the main README.md or open an issue in the repository.
+
+---
+
+## Bastion Host (Jump Server)
+
+A Bastion host is deployed in the public subnet to provide secure access to resources in private subnets (such as the RDS PostgreSQL database).  
+It uses AWS SSM Session Manager for secure, passwordless access—no need to expose SSH to the internet.
+
+**Purpose:**
+- Allows you to securely connect to the RDS database in private subnets for debugging, migrations, or manual queries.
+- Uses SSM Session Manager (no SSH keys required).
+- Minimal cost (`t3.micro` instance).
+
+**How to use:**
+
+1. **Start an SSM session:**
+   ```bash
+   aws ssm start-session --target <bastion-instance-id> --region <your-region>
+   ```
+
+2. **Connect to RDS from the Bastion:**
+   ```bash
+   psql -h <rds-endpoint> -U postgres -d <db-name>
+   ```
+
+**Notes:**
+- The Bastion host security group allows outbound access to RDS on port 5432.
+- The RDS security group allows inbound access from the Bastion host security group.
+- The Bastion host is only accessible via SSM (SSH is disabled by default for security).
+
+---
+
+**Tip:**  
+Terminate the Bastion host when not needed to save costs.

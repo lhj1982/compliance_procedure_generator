@@ -1,0 +1,17 @@
+region                = "us-east-1"
+app_name              = "compliance-procedure-admin"
+environment           = "dev"
+aws_profile           = "default"
+
+vpc_id                = "vpc-xxxxxxxx"
+private_subnet_ids    = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+public_subnet_ids     = ["subnet-zzzzzzzz", "subnet-aaaaaaaa"]
+
+llm_base_url          = "https://api.openai.com/v1"
+
+db_instance_identifier      = "cp-admin-db-instance"
+db_security_group_id        = "sg-xxxxxxxx"
+s3_bucket_name              = "cp-admin-documents"
+secret_manager_name         = "cp-admin-secrets"
+ecr_backend_repository_name = "cp-admin-backend"
+ecr_frontend_repository_name = "cp-admin-

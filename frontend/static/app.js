@@ -96,20 +96,26 @@ class ComplianceApp {
     constructor() {
         this.selectedTeam = null;
         this.teams = [];
-        // Configure API base URL - works for both localhost and Docker
+        this.currentQuestions = []; // Store current team's questions
+        // Configure API base URL - works for ECS/prod and local
         this.apiBaseUrl = this.getApiBaseUrl();
         console.log('Constructor - API Base URL set to:', this.apiBaseUrl);
         this.init();
     }
 
     getApiBaseUrl() {
+        // Prefer BACKEND_URL from environment if set (ECS/prod)
+        if (typeof BACKEND_URL !== "undefined" && BACKEND_URL) {
+            console.log('Using BACKEND_URL from environment:', BACKEND_URL);
+            return BACKEND_URL;
+        }
         // For localhost development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             console.log('Detected localhost, using API URL: http://localhost:9090');
             return 'http://localhost:9090';
         }
         // For Docker or production - assume backend is on same host, different port
-        const apiUrl = `${window.location.protocol}//${window.location.hostname}:9090`;
+        const apiUrl = `${window.location.protocol}//${window.location.hostname}`;
         console.log('Detected non-localhost, using API URL:', apiUrl);
         return apiUrl;
     }
@@ -197,7 +203,7 @@ class ComplianceApp {
         });
     }
 
-    handleTeamSelection(teamId) {
+    async handleTeamSelection(teamId) {
         if (!teamId) {
             this.showWelcomeView();
             return;
@@ -205,8 +211,31 @@ class ComplianceApp {
 
         this.selectedTeam = this.teams.find(team => team.id == teamId);
         if (this.selectedTeam) {
+            // Fetch questions for the selected team
+            await this.loadTeamQuestions(teamId);
             this.showQuestionsView();
             this.generateQuestions();
+        }
+    }
+
+    async loadTeamQuestions(teamId) {
+        try {
+            const questionsUrl = `${this.apiBaseUrl}/api/teams/${teamId}/questions`;
+            console.log('Loading questions from URL:', questionsUrl);
+            const response = await fetch(questionsUrl);
+            if (response.ok) {
+                const data = await response.json();
+                this.currentQuestions = data.questions || [];
+                console.log('Loaded questions:', this.currentQuestions);
+            } else {
+                console.error('Failed to load team questions, using default');
+                // Fallback to default questions
+                this.currentQuestions = COMPLIANCE_QUESTIONS;
+            }
+        } catch (error) {
+            console.error('Error loading team questions:', error);
+            // Fallback to default questions
+            this.currentQuestions = COMPLIANCE_QUESTIONS;
         }
     }
 
@@ -228,7 +257,10 @@ class ComplianceApp {
         const container = document.getElementById('questions-container');
         container.innerHTML = '';
 
-        COMPLIANCE_QUESTIONS.forEach((question, index) => {
+        // Use currentQuestions instead of COMPLIANCE_QUESTIONS
+        const questions = this.currentQuestions.length > 0 ? this.currentQuestions : COMPLIANCE_QUESTIONS;
+
+        questions.forEach((question, index) => {
             const questionDiv = document.createElement('div');
             questionDiv.className = 'question-item';
 
@@ -272,7 +304,9 @@ class ComplianceApp {
             answers: {}
         };
 
-        COMPLIANCE_QUESTIONS.forEach(question => {
+        // Use currentQuestions instead of COMPLIANCE_QUESTIONS
+        const questions = this.currentQuestions.length > 0 ? this.currentQuestions : COMPLIANCE_QUESTIONS;
+        questions.forEach(question => {
             const input = document.getElementById(question.id);
             if (input && input.value.trim()) {
                 formData.answers[question.id] = {
