@@ -43,29 +43,35 @@ client = OpenAI(
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-INITIAL_PROMPT = "You are tasked with generating a documented PCI control procedure based on engineers’ answers. " \
-"The procedure must follow compliance documentation standards for PCI DSS, PCI PIN, and P2PE. " \
-"Engineers often perform security, monitoring, or operational tasks as part of their daily or monthly work. " \
-"These are actually PCI controls, but they may not realize it. " \
-"Your role is to take their answers and transform them into a formal, auditor-ready documented procedure. 🔹 " \
-"Procedure Document Format Structure the document with these sections: " \
-"Control Name – State the control name clearly. " \
-"Control Owner / Performer – Identify the role, individual, or team performing it. " \
-"Frequency – State how often it occurs (daily, weekly, monthly, quarterly). " \
-"Purpose / PCI Risk Mitigation – Explain the PCI-related risk or requirement this control addresses, and how performing the action reduces that risk. " \
-"Procedure Steps – Numbered, step-by-step instructions that a new engineer could follow. " \
-"Tools & Systems – List the platforms, dashboards, or applications used. " \
-"Access Requirements – Define repos, folders, credentials, or elevated privileges needed. " \
-"Starting Point – State exactly where the work begins (e.g., dashboard link, console path, Jira queue). " \
-"Checks & Criteria – What standards, thresholds, or PCI requirements are verified. " \
-"Failure Handling – Escalation path and remediation actions if the control check fails. " \
-"Additional Involvement – Note if other teams or individuals are involved pre-approval. " \
-"Approval / Sign-off – Define who signs off or provides final validation. " \
-"Evidence Storage – Where control evidence is stored (e.g., SharePoint, Jira, secure folder). " \
-"Work Location – Specify if performed by a local team, offshore team, or multiple sites. " \
-"Dependencies – Identify upstream/downstream dependencies (e.g., access provisioning controls, platform rules). 🔹 " \
-"Questions to Answer (Engineer Input) Control name: Who performs it? (role, team, or name): When is it done? (daily, weekly, monthly, quarterly…): Why do we do this? (what PCI risk or failure does it prevent?): How does your action reduce that risk?: What are the exact step-by-step actions you take?: What tools/systems do you use? (e.g., GitHub, Jira, Splunk, firewall console…): What access do you need? (repos, folders, credentials, VPN, privileged accounts…): Where do you start? (dashboard link, folder path, console…): What do you check for? (PCI rules, standards, thresholds, configurations…): What happens if the check fails? (escalation, fix steps, ticket creation…): Is anyone else involved before it’s approved? (Yes/No):   If yes, who? Who approves/signs off?: Where is evidence stored? (ticket system, shared folder, SharePoint, Confluence…): Where is this worked from? (specific team, site, or distributed location): Does this depend on another control or team? (Yes/No):   If yes, describe briefly (e.g., access dependency, workflow dependency). 🔹 Instructions to the AI Take the engineer’s raw answers above. Expand them into a clear, step-by-step documented procedure aligned with PCI DSS / PCI PIN / P2PE compliance standards. Use formal compliance language (e.g., “The control ensures…”, “In case of failure, escalation occurs to…”). Fill in gaps where engineers gave shorthand answers (turn fragments into auditor-readable sentences). Preserve a consistent numbering, headings, and compliance structure. Ensure the output is ready for auditors — focused on clarity, traceability, and evidence." \
-"Put your answer of the section, numbered steps, and bullet points to match the section in uploaded template file, and use the same format to generate the document."
+INITIAL_PROMPT = "You are given brief, informal answers from a subject-matter expert (SME). Your task is to convert those answers into a **formal, auditor-quality standard operating procedure (SOP)**.\n\n" \
+"The output must be clear, structured, and repeatable, suitable for internal control, governance, or audit review.\n\n" \
+"**Document Template / Structure**\n" \
+"Use the following headings (and sub-structure) in every procedure:\n\n" \
+"1. Procedure Name\n" \
+"2. Owner / Performer (role, team, or individual)\n" \
+"3. Frequency (e.g. daily, weekly, monthly, quarterly, ad hoc)\n" \
+"4. Purpose / Risk Mitigation\n" \
+"5. Procedure Steps (numbered)\n" \
+"6. Tools & Systems Used\n" \
+"7. Access / Permissions Required\n" \
+"8. Starting Point (where work begins)\n" \
+"9. Checks & Criteria (standards, thresholds, rules)\n" \
+"10. Exception / Failure Handling (escalation, remediation)\n" \
+"11. Dependencies / Inputs\n" \
+"12. Approvals / Sign-off\n" \
+"13. Evidence / Records Storage\n" \
+"14. Work Location / Team (onsite, remote, regional)\n" \
+"15. Versioning & Review Information (effective date, next review)\n\n" \
+"**Language & Style Guidance**\n" \
+"- Use formal, compliance-style language: e.g. \"This procedure ensures ...\", \"In the event of failure ...\", \"Escalation is performed to ...\".\n" \
+"- If the SME answer is shorthand or partial, expand into clear, full sentences.\n" \
+"- Do *not* invent critical facts; if something isn't provided, mark a placeholder (e.g. \"[TBD: Approver]\") rather than guessing.\n" \
+"- Maintain numbering consistency and clear hierarchy.\n" \
+"- Emphasize **traceability**: each step should map to the checks & criteria, and evidence storage should link to steps.\n\n" \
+"**Process**\n" \
+"1. You will be given a set of answer pairs: a \"Question\" and \"SME's short answer.\"\n" \
+"2. Reformulate into the full procedure document following the template above.\n" \
+"3. If any essential information is missing (e.g. approval role), flag it as needing input."
 
 '''
 INITIAL_PROMPT = "You are tasked with generating a documented PCI DSS / PCI PIN / P2PE control procedure based on engineers’ answers. " \
@@ -229,6 +235,35 @@ def get_teams():
         if conn:
             conn.close()
         return jsonify({'error': 'Failed to fetch teams'}), 500
+
+@app.route('/api/teams/<int:team_id>/questions', methods=['GET'])
+def get_team_questions(team_id):
+    """Get questions for a specific team"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, name, questions FROM teams WHERE id = %s", (team_id,))
+        team = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not team:
+            return jsonify({'error': 'Team not found'}), 404
+
+        logger.info(f"Retrieved questions for team: {team['name']}")
+        return jsonify({
+            'team_id': team['id'],
+            'team_name': team['name'],
+            'questions': team['questions'] if team['questions'] else []
+        })
+    except psycopg2.Error as e:
+        logger.error(f"Database query error: {e}")
+        if conn:
+            conn.close()
+        return jsonify({'error': 'Failed to fetch team questions'}), 500
 
 @app.route('/api/submit_answers', methods=['POST'])
 def submit_answers():
