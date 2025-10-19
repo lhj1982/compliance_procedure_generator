@@ -328,6 +328,14 @@ resource "aws_ecs_task_definition" "backend" {
       protocol      = "tcp"
     }]
 
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:9090/ || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
+
     environment = [
       { name = "DB_HOST", value = data.aws_db_instance.postgres.address },
       { name = "DB_PORT", value = "5432" },
@@ -376,6 +384,14 @@ resource "aws_ecs_task_definition" "frontend" {
       containerPort = 8082
       protocol      = "tcp"
     }]
+
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:8082/ || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
 
     environment = [
       { name = "BACKEND_INTERNAL_URL", value = "http://${var.gen_internal_alb_dns_name}" }
