@@ -42,13 +42,25 @@ resource "google_vpc_access_connector" "connector" {
   name          = "${var.app_name}-vpc-connector-${var.environment}"
   region        = var.region
   network       = google_compute_network.main.name
-  ip_cidr_range = cidrsubnet(var.vpc_cidr, 8, 3)
+  ip_cidr_range = "10.8.0.0/28"  # Use a fixed CIDR instead of dynamic calculation
   project       = var.project_id
 
-  # Use f1-micro for cost optimization
-  machine_type = "f1-micro"
+  # Minimize resource usage
+  machine_type  = "e2-micro"
   min_instances = 2
   max_instances = 3
+
+  # Add timeouts
+  timeouts {
+    create = "45m"
+    delete = "45m"
+  }
+
+  depends_on = [
+    google_compute_network.main,
+    google_compute_subnetwork.private,
+    google_compute_router_nat.nat  # Add dependency on NAT gateway
+  ]
 }
 
 # Cloud Router for NAT
