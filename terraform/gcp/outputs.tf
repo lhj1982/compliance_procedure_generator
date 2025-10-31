@@ -1,30 +1,40 @@
-output "backend_url" {
-  description = "Backend Cloud Run service URL"
-  value       = google_cloud_run_v2_service.backend.uri
+output "load_balancer_ip" {
+  description = "External IP address of the load balancer - use this to access the application"
+  value       = module.cp_generator.load_balancer_ip
 }
 
-output "frontend_url" {
-  description = "Frontend Cloud Run service URL"
-  value       = google_cloud_run_v2_service.frontend.uri
+output "application_url" {
+  description = "Application URL"
+  value       = "http://${module.cp_generator.load_balancer_ip}"
 }
 
-output "database_connection_name" {
-  description = "Cloud SQL connection name"
-  value       = google_sql_database_instance.postgres.connection_name
+output "frontend_cloud_run_url" {
+  description = "Cloud Run frontend service URL (internal)"
+  value       = module.cp_generator.frontend_url
 }
 
-output "gcs_bucket_name" {
-  description = "GCS bucket for documents"
-  value       = google_storage_bucket.documents.name
+output "backend_cloud_run_url" {
+  description = "Cloud Run backend service URL (internal)"
+  value       = module.cp_generator.backend_url
 }
 
-output "artifact_registry" {
-  description = "Artifact Registry repository"
-  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id}"
+output "admin_cloud_run_url" {
+  description = "Cloud Run admin service URL (internal)"
+  value       = module.cp_generator.admin_url
 }
 
-output "database_private_ip" {
-  description = "Database private IP address"
-  value       = google_sql_database_instance.postgres.private_ip_address
-  sensitive   = true
+output "bastion_ssh_command" {
+  description = "Command to SSH into bastion host"
+  value       = module.cp_generator.bastion_ssh_command
+}
+
+output "db_connection_info" {
+  description = "Database connection information"
+  value = {
+    instance_name     = module.infrastructure.db_instance_name
+    connection_name   = module.infrastructure.db_connection_name
+    database_name     = module.infrastructure.db_name
+    private_ip        = module.infrastructure.db_private_ip
+  }
+  sensitive = true
 }

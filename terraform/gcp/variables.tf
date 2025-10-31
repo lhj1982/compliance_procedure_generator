@@ -4,37 +4,64 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP region"
+  description = "GCP region for resources"
   type        = string
   default     = "us-central1"
 }
 
-variable "app_name" {
-  description = "Application name"
-  type        = string
-  default     = "compliance-procedure-gen"
-}
-
 variable "environment" {
-  description = "Environment (dev, staging, prod)"
+  description = "Environment name (e.g., dev, staging, prod)"
   type        = string
   default     = "dev"
 }
 
-variable "llm_api_key" {
-  description = "LLM API Key (OpenAI or compatible)"
+variable "db_tier" {
+  description = "Cloud SQL instance tier"
   type        = string
-  sensitive   = true
+  default     = "db-f1-micro"
 }
 
-variable "llm_base_url" {
-  description = "LLM Base URL"
+variable "db_name" {
+  description = "Database name"
   type        = string
-  default     = "https://api.openai.com/v1"
+  default     = "compliance_db"
+}
+
+variable "db_user" {
+  description = "Database username"
+  type        = string
+  default     = "compliance_user"
 }
 
 variable "db_password" {
   description = "Database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "frontend_image" {
+  description = "Docker image for frontend"
+  type        = string
+}
+
+variable "backend_image" {
+  description = "Docker image for backend"
+  type        = string
+}
+
+variable "admin_image" {
+  description = "Docker image for admin"
+  type        = string
+}
+
+variable "llm_api_key" {
+  description = "LLM API key for backend"
   type        = string
   sensitive   = true
 }

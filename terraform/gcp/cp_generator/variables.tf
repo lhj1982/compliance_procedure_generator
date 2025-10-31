@@ -4,66 +4,82 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP region"
+  description = "GCP region for resources"
   type        = string
-  default     = "us-central1"
-}
-
-variable "app_name" {
-  description = "Application name"
-  type        = string
-  default     = "compliance-procedure"
 }
 
 variable "environment" {
-  description = "Environment (dev, staging, prod)"
-  type        = string
-  default     = "dev"
-}
-
-variable "llm_base_url" {
-  description = "LLM Base URL"
-  type        = string
-  default     = "https://api.openai.com/v1"
-}
-
-# Infrastructure resource identifiers (from infrastructure module outputs)
-variable "vpc_connector_name" {
-  description = "VPC Access Connector name"
+  description = "Environment name"
   type        = string
 }
 
-variable "sql_instance_name" {
-  description = "Cloud SQL instance name"
+variable "vpc_connector_id" {
+  description = "VPC Access Connector ID"
   type        = string
 }
 
-variable "database_name" {
+variable "db_connection_name" {
+  description = "Cloud SQL connection name"
+  type        = string
+}
+
+variable "db_name" {
   description = "Database name"
   type        = string
 }
 
-variable "storage_bucket_name" {
-  description = "Cloud Storage bucket name"
+variable "db_user" {
+  description = "Database username"
   type        = string
 }
 
-variable "secret_manager_secret_id" {
-  description = "Secret Manager secret ID"
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_private_ip" {
+  description = "Cloud SQL private IP address"
   type        = string
 }
 
-variable "gen_backend_registry_name" {
-  description = "Artifact Registry name for generator backend"
+variable "frontend_image" {
+  description = "Docker image for frontend"
+  type        = string
+  default     = "gcr.io/PROJECT_ID/compliance-frontend:latest"
+}
+
+variable "backend_image" {
+  description = "Docker image for backend"
+  type        = string
+  default     = "gcr.io/PROJECT_ID/compliance-backend:latest"
+}
+
+variable "admin_image" {
+  description = "Docker image for admin"
+  type        = string
+  default     = "gcr.io/PROJECT_ID/compliance-admin:latest"
+}
+
+variable "llm_api_key" {
+  description = "LLM API key for backend"
+  type        = string
+  sensitive   = true
+}
+
+variable "bastion_allowed_ips" {
+  description = "List of IP addresses allowed to access bastion"
+  type        = list(string)
+  default     = []
+}
+
+variable "public_subnet_name" {
+  description = "Public subnet name for bastion"
   type        = string
 }
 
-variable "gen_frontend_registry_name" {
-  description = "Artifact Registry name for generator frontend"
-  type        = string
-}
-
-variable "service_account_email" {
-  description = "Service account email for Cloud Run (just the account ID part)"
+variable "vpc_name" {
+  description = "VPC network name"
   type        = string
 }

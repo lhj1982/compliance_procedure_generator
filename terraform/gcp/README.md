@@ -1,229 +1,378 @@
-# GCP Terraform Infrastructure
+# GCP Deployment Guide for Compliance Procedure System
 
-This Terraform configuration is split into two separate modules to isolate foundational resources from application deployments:
+This guide covers deploying the Compliance Procedure system to Google Cloud Platform using Terraform.
 
-## Module Structure
+## Architecture Overview
 
-### 1. Infrastructure Module (`infrastructure/`)
-**Purpose**: Creates foundational resources that should persist across deployments and rarely change.
+The deployment creates:
 
-**Resources Created**:
-- VPC Network with public and private subnets
-- Cloud SQL PostgreSQL database
-- Cloud Storage bucket for document storage
-- Secret Manager secrets (LLM API key, DB password)
-- Artifact Registry repositories (for Docker images)
-- VPC Access Connector for Cloud Run
-- Cloud NAT for outbound traffic
-- Service Account for Cloud Run
+- **VPC Network**: Private network with public and private subnets
+- **Cloud SQL**: PostgreSQL database in private subnet
+- **Cloud Run Services**:
+  - Frontend (public-facing with nginx reverse proxy)
+  - Backend (private, accessed via VPC connector)
+  - Admin (private, accessed via VPC connector)
+- **Cloud Load Balancer**: External HTTP(S) load balancer
+- **Bastion Host**: e2-micro instance for secure database access
+- **Secret Manager**: Secure storage for sensitive data
+- **VPC Connector**: Enables Cloud Run to access VPC resources
 
-**When to deploy**: Once during initial setup, or when you need to modify database/storage configuration.
+## Cost Optimization Features
 
-### 2. Application Module (`cp_generator/`)
-**Purpose**: Creates application-level resources that can be updated frequently without affecting the database or storage.
-
-**Resources Created**:
-- Cloud Run services (backend and frontend)
-- Load Balancers (internal for backend, external for frontend)
-- Network Endpoint Groups
-- Health checks
-- IAM bindings for service invocation
-
-**When to deploy**: Whenever you update your application code, change Cloud Run configuration, or modify the load balancers.
-
-## GCP vs AWS Service Mapping
-
-| AWS Service | GCP Equivalent | Purpose |
-|------------|----------------|---------|
-| ECS Fargate | Cloud Run | Serverless container runtime |
-| RDS PostgreSQL | Cloud SQL PostgreSQL | Managed PostgreSQL database |
-| S3 | Cloud Storage | Object storage |
-| ECR | Artifact Registry | Container image registry |
-| Secrets Manager | Secret Manager | Secrets storage |
-| VPC | VPC Network | Virtual network |
-| NAT Gateway | Cloud NAT | Outbound internet access |
-| ALB | Load Balancer | Application load balancing |
-| IAM Roles | Service Accounts | Identity and access management |
+- **Cloud Run**: Pay only for actual usage with scale-to-zero
+- **db-f1-micro**: Smallest Cloud SQL tier (upgrade for production)
+- **e2-micro bastion**: Cheapest VM type
+- **Preemptible bastion**: Auto-terminated within 24h (dev only)
+- **Minimal disk sizes**: 10GB for database and bastion
+- **Auto-scaling**: Configured based on environment
 
 ## Prerequisites
 
-1. **GCP Project**: Create a GCP project and note the project ID
-2. **gcloud CLI**: Install and configure the gcloud CLI
+1. **GCP Account** with billing enabled
+2. **GCP Project** created
+3. **gcloud CLI** installed and authenticated:
    ```bash
    gcloud auth login
    gcloud config set project YOUR_PROJECT_ID
    ```
-3. **Enable Billing**: Ensure billing is enabled for your project
-4. **Terraform**: Install Terraform >= 1.0
+4. **Terraform** >= 1.0 installed
+5. **Docker** installed for building images
 
-## Deployment Order
+## Required GCP APIs
 
-### Initial Setup
+The Terraform will automatically enable these APIs:
+- Compute Engine API
+- Cloud SQL Admin API
+- Service Networking API
+- Serverless VPC Access API
+- Cloud Run API
+- Cloud Resource Manager API
+- Identity-Aware Proxy API
 
-1. **Deploy Infrastructure Module First**:
-   ```bash
-   cd infrastructure/
-   cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with your values
-   terraform init
-   terraform plan
-   terraform apply
+## Step 1: Build and Push Docker Images
 
-   # Save outputs for application module
-   terraform output
-   ```
-
-2. **Build and Push Docker Images**:
-   ```bash
-   # Configure Docker to use Artifact Registry
-   gcloud auth configure-docker us-central1-docker.pkg.dev
-
-   # Build and push backend image
-   cd ../../backend
-   docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT/compliance-procedure-gen-backend/backend:latest .
-   docker push us-central1-docker.pkg.dev/YOUR_PROJECT/compliance-procedure-gen-backend/backend:latest
-
-   # Build and push frontend image
-   cd ../frontend
-   docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT/compliance-procedure-gen-frontend/frontend:latest .
-   docker push us-central1-docker.pkg.dev/YOUR_PROJECT/compliance-procedure-gen-frontend/frontend:latest
-   ```
-
-3. **Deploy Application Module Second**:
-   ```bash
-   cd ../terraform/gcp/cp_generator/
-   cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with values from infrastructure outputs
-   terraform init
-   terraform plan
-   terraform apply
-   ```
-
-### Redeploying Application
-
-When you need to update your application (new code, Cloud Run config changes, etc.):
+### 1.1 Configure Docker for GCR
 
 ```bash
-# Push new images
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT/compliance-procedure-gen-backend/backend:latest .
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT/compliance-procedure-gen-backend/backend:latest
-
-# Redeploy
-cd terraform/gcp/cp_generator/
-terraform apply
+gcloud auth configure-docker gcr.io
 ```
 
-Cloud Run will automatically deploy the new images.
-
-### Updating Infrastructure
-
-When you need to modify database settings, add secrets, etc.:
+### 1.2 Set your project ID
 
 ```bash
-cd infrastructure/
+export PROJECT_ID="your-gcp-project-id"
+```
+
+### 1.3 Build and push frontend image
+
+```bash
+cd compliance_procedure_generator
+
+docker build -f Dockerfile.gcp -t gcr.io/$PROJECT_ID/compliance-frontend:latest .
+docker push gcr.io/$PROJECT_ID/compliance-frontend:latest
+```
+
+### 1.4 Build and push backend image
+
+The backend is included in the frontend image (nginx proxies to it).
+If you want separate backend:
+
+```bash
+docker build -t gcr.io/$PROJECT_ID/compliance-backend:latest ./backend
+docker push gcr.io/$PROJECT_ID/compliance-backend:latest
+```
+
+### 1.5 Build and push admin image
+
+```bash
+cd ../compliance_procedure_admin
+
+docker build -f Dockerfile.gcp -t gcr.io/$PROJECT_ID/compliance-admin:latest .
+docker push gcr.io/$PROJECT_ID/compliance-admin:latest
+```
+
+## Step 2: Configure Terraform Variables
+
+### 2.1 Create terraform.tfvars
+
+```bash
+cd ../terraform/gcp
+cp terraform.tfvars.example terraform.tfvars
+```
+
+### 2.2 Edit terraform.tfvars
+
+```hcl
+project_id  = "your-gcp-project-id"
+region      = "us-central1"
+environment = "dev"
+
+db_tier     = "db-f1-micro"
+db_name     = "compliance_db"
+db_user     = "compliance_user"
+db_password = "STRONG_PASSWORD_HERE"
+
+vpc_cidr = "10.0.0.0/16"
+
+frontend_image = "gcr.io/your-project-id/compliance-frontend:latest"
+backend_image  = "gcr.io/your-project-id/compliance-backend:latest"
+admin_image    = "gcr.io/your-project-id/compliance-admin:latest"
+
+llm_api_key = "your-llm-api-key"
+```
+
+## Step 3: Deploy Infrastructure
+
+### 3.1 Initialize Terraform
+
+```bash
+terraform init
+```
+
+### 3.2 Review the plan
+
+```bash
 terraform plan
+```
+
+### 3.3 Apply the configuration
+
+```bash
 terraform apply
 ```
 
-**⚠️ Warning**: Be careful when modifying infrastructure resources, especially the database, as changes may require downtime or data migration.
+This will take 10-15 minutes to:
+- Create VPC and subnets
+- Set up Cloud SQL instance
+- Deploy Cloud Run services
+- Configure load balancer
+- Launch bastion host
 
-## Getting Infrastructure Outputs for Application Module
-
-After deploying the infrastructure module, you need to pass certain values to the application module. Run:
+### 3.4 Get outputs
 
 ```bash
-cd infrastructure/
 terraform output
 ```
 
-Use these outputs to fill in the application module's `terraform.tfvars`:
-- `sql_instance_name` → Cloud SQL instance name
-- `database_name` → Database name
-- `storage_bucket_name` → Cloud Storage bucket name
-- `secret_manager_secret_id` → Secret Manager secret ID
-- `vpc_connector_name` → VPC Access Connector name
-- `gen_backend_registry` → Artifact Registry for backend
-- `gen_frontend_registry` → Artifact Registry for frontend
-- `service_account_email` → Service account email
+Save the `load_balancer_ip` - this is your application URL.
 
-## Destroying Resources
+## Step 4: Initialize Database
 
-Destroy in reverse order:
+### 4.1 SSH to bastion via IAP
 
-1. Destroy application first:
-   ```bash
-   cd cp_generator/
-   terraform destroy
-   ```
+```bash
+# Copy the command from terraform output
+gcloud compute ssh compliance-bastion-dev \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --project=your-project-id
+```
 
-2. Then destroy infrastructure:
-   ```bash
-   cd ../infrastructure/
-   terraform destroy
-   ```
+### 4.2 Connect to Cloud SQL
 
-## Benefits of This Structure
+On the bastion host:
 
-1. **Safety**: Database and storage are protected from accidental changes during application deployments
-2. **Speed**: Application deployments are faster since they don't need to check infrastructure resources
-3. **Isolation**: Different teams can manage infrastructure vs application resources
-4. **Cost Control**: Prevents accidental recreation of costly resources (Cloud SQL, Cloud Storage)
-5. **State Management**: Smaller state files are easier to manage and less prone to conflicts
+```bash
+# Get database connection name from terraform output
+export DB_CONNECTION_NAME="your-project:us-central1:compliance-db-dev"
 
-## Cost Optimization
+# Start Cloud SQL proxy
+cloud_sql_proxy -instances=$DB_CONNECTION_NAME=tcp:5432 &
 
-Cloud Run is serverless and scales to zero, meaning you only pay when requests are being processed. Key settings for cost optimization:
+# Connect to database
+psql -h 127.0.0.1 -U compliance_user -d compliance_db
+```
 
-- **Min instances**: Set to 0 for development (configured in the tf files)
-- **Max instances**: Set to 10 to limit max cost (can be adjusted)
-- **CPU allocation**: Uses `cpu_idle = true` to only allocate CPU during request processing
+### 4.3 Run schema migrations
 
-Estimated costs (us-central1, dev environment):
-- Cloud SQL (db-f1-micro): ~$15-20/month
-- Cloud Storage: ~$0.026/GB/month + operations
-- Cloud Run: Pay per use (free tier: 2M requests/month)
-- Load Balancer: ~$18/month + bandwidth
-- VPC Connector: ~$8.35/month
+```sql
+-- Copy and paste SQL from schema files
+\i /path/to/schema/001_initial_schema.sql
+\i /path/to/schema/002_add_questions.sql
+-- etc.
+```
 
-## Health Checks
+Or upload schema files to bastion:
 
-Both backend and frontend services have health checks configured at multiple levels:
+```bash
+# From your local machine
+gcloud compute scp compliance_procedure_admin/schema/*.sql \
+  compliance-bastion-dev:/tmp/ \
+  --zone=us-central1-a \
+  --tunnel-through-iap \
+  --project=your-project-id
+```
 
-1. **Cloud Run Health Probes**:
-   - Startup probe: Checks if container started successfully
-   - Liveness probe: Checks if container is healthy and responsive
+## Step 5: Access the Application
 
-2. **Load Balancer Health Checks**:
-   - Checks backend service availability
-   - Automatically removes unhealthy instances from rotation
+### 5.1 Get the load balancer IP
 
-Health check configuration:
-- Path: `/`
-- Interval: 30 seconds
-- Timeout: 5 seconds
-- Healthy threshold: 2
-- Unhealthy threshold: 2
+```bash
+terraform output load_balancer_ip
+```
+
+### 5.2 Access via browser
+
+```
+http://LOAD_BALANCER_IP
+```
+
+Note: It may take 5-10 minutes for the load balancer to be fully ready.
+
+### 5.3 Health checks
+
+```bash
+curl http://LOAD_BALANCER_IP/health
+```
+
+## Architecture Details
+
+### Network Flow
+
+1. **User → Load Balancer → Frontend Cloud Run**
+   - User accesses public IP
+   - Load balancer routes to frontend
+   - Frontend serves static HTML/JS
+
+2. **Browser → Load Balancer → Frontend → Backend**
+   - JavaScript in browser makes API calls to `/api/*`
+   - Nginx in frontend container proxies to backend on port 9090
+   - Backend connects to Cloud SQL via VPC connector
+
+3. **Bastion → Cloud SQL**
+   - Bastion in public subnet (no external IP, IAP access only)
+   - Cloud SQL proxy connects to database
+   - Database in private VPC peering connection
+
+### Security
+
+- **Cloud Run ingress**: Frontend allows all, backend/admin restricted
+- **Cloud SQL**: Private IP only, no public access
+- **Bastion**: No external IP, SSH via IAP only
+- **Secrets**: Stored in Secret Manager
+- **VPC**: Private subnet with NAT for outbound only
+
+### Cost Estimates (Monthly - US Central1)
+
+**Development (scale-to-zero):**
+- Cloud Run: $0 (idle) - $10 (light usage)
+- Cloud SQL db-f1-micro: ~$7
+- Bastion e2-micro preemptible: ~$3.50
+- VPC connector: ~$7
+- Load balancer: ~$18
+- **Total: ~$35-45/month**
+
+**Production (always-on):**
+- Cloud Run: ~$50-100 (depends on traffic)
+- Cloud SQL db-g1-small: ~$25
+- Bastion e2-micro: ~$7
+- VPC connector: ~$14
+- Load balancer: ~$18
+- **Total: ~$115-165/month**
+
+## Updating the Application
+
+### Update container images
+
+```bash
+# Rebuild and push new images
+docker build -f Dockerfile.gcp -t gcr.io/$PROJECT_ID/compliance-frontend:v2 .
+docker push gcr.io/$PROJECT_ID/compliance-frontend:v2
+
+# Update terraform.tfvars with new image tag
+frontend_image = "gcr.io/your-project-id/compliance-frontend:v2"
+
+# Apply changes
+terraform apply
+```
+
+Cloud Run will automatically deploy the new revision with zero downtime.
+
+## Cleanup
+
+To destroy all resources:
+
+```bash
+terraform destroy
+```
+
+**Warning**: This will delete:
+- All Cloud Run services
+- The database and all data
+- The bastion host
+- The VPC and networking
 
 ## Troubleshooting
 
-### Check Cloud Run Logs
+### Cloud Run service not starting
+
+Check logs:
 ```bash
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=compliance-procedure-backend" --limit 50
+gcloud run services logs read compliance-frontend-dev --region=us-central1
 ```
 
-### View Service Status
+### Database connection issues
+
+1. Verify VPC connector is attached
+2. Check Cloud SQL private IP
+3. Verify database credentials in Secret Manager
+4. Check Cloud Run service account permissions
+
+### Load balancer returns 502
+
+- Wait 5-10 minutes after initial deployment
+- Check Cloud Run health endpoint: `/health`
+- Verify backend services are running
+
+### Bastion SSH fails
+
 ```bash
-gcloud run services describe compliance-procedure-backend --region=us-central1
-gcloud run services describe compliance-procedure-frontend --region=us-central1
+# Ensure IAP is enabled
+gcloud services enable iap.googleapis.com
+
+# Add IAP tunnel user role
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member=user:YOUR_EMAIL \
+  --role=roles/iap.tunnelResourceAccessor
 ```
 
-### Test Backend Connectivity
+## Monitoring and Logging
+
+### View Cloud Run logs
+
 ```bash
-# From within the VPC (e.g., via Cloud Shell with VPC connector)
-curl http://BACKEND_SERVICE_URI/
+gcloud run services logs read SERVICE_NAME --region=REGION --limit=100
 ```
 
-### Database Connection Issues
-- Ensure VPC Access Connector is properly configured
-- Check that Cloud SQL is configured for private IP
-- Verify service account has `cloudsql.client` role
+### View Cloud SQL logs
+
+```bash
+gcloud sql operations list --instance=compliance-db-dev
+```
+
+### Set up monitoring alerts
+
+Configure in GCP Console:
+- Cloud Run → Metrics
+- Cloud SQL → Monitoring
+- Load Balancer → Monitoring
+
+## Production Recommendations
+
+1. **Enable HTTPS**: Uncomment SSL configuration in `load_balancer.tf`
+2. **Use custom domain**: Configure Cloud DNS
+3. **Enable Cloud Armor**: DDoS protection
+4. **Set up Cloud CDN**: Cache static content
+5. **Configure backups**: Automated Cloud SQL backups
+6. **Use regional Cloud SQL**: High availability
+7. **Implement CI/CD**: Cloud Build for automatic deployments
+8. **Enable VPC Flow Logs**: Network monitoring
+9. **Use Terraform Cloud**: Remote state management
+10. **Set up Cloud Monitoring**: Alerts and dashboards
+
+## Support
+
+For issues specific to:
+- **GCP**: Check GCP documentation
+- **Terraform**: See Terraform GCP provider docs
+- **Application**: Check application logs via Cloud Run

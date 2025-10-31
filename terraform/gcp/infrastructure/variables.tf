@@ -4,31 +4,43 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP region"
+  description = "GCP region for resources"
   type        = string
   default     = "us-central1"
 }
 
-variable "app_name" {
-  description = "Application name"
-  type        = string
-  default     = "compliance-procedure"
-}
-
 variable "environment" {
-  description = "Environment (dev, staging, prod)"
+  description = "Environment name (e.g., dev, staging, prod)"
   type        = string
   default     = "dev"
 }
 
+variable "db_tier" {
+  description = "Cloud SQL instance tier"
+  type        = string
+  default     = "db-f1-micro" # Smallest/cheapest tier
+}
+
+variable "db_name" {
+  description = "Database name"
+  type        = string
+  default     = "compliance_db"
+}
+
+variable "db_user" {
+  description = "Database username"
+  type        = string
+  default     = "compliance_user"
+}
+
 variable "db_password" {
-  description = "PostgreSQL database password"
+  description = "Database password"
   type        = string
   sensitive   = true
 }
 
-variable "llm_api_key" {
-  description = "LLM API key (OpenAI, etc.)"
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
   type        = string
-  sensitive   = true
+  default     = "10.0.0.0/16"
 }

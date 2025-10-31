@@ -1,12 +1,21 @@
-# GCP Configuration
+# GCP Project Configuration
 project_id  = "your-gcp-project-id"
 region      = "us-central1"
-app_name    = "compliance-procedure-gen"
 environment = "dev"
 
-# Sensitive Variables (use environment variables or Secret Manager)
-# llm_api_key = "your-llm-api-key"
-# db_password = "your-secure-db-password"
+# Database Configuration
+db_tier     = "db-f1-micro"  # Use db-g1-small or higher for production
+db_name     = "compliance_db"
+db_user     = "compliance_user"
+db_password = "CHANGE_ME_STRONG_PASSWORD"
 
-# LLM Configuration
-llm_base_url = "https://api.openai.com/v1"
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+
+# Docker Images (replace PROJECT_ID with your GCP project ID)
+frontend_image = "gcr.io/PROJECT_ID/compliance-frontend:latest"
+backend_image  = "gcr.io/PROJECT_ID/compliance-backend:latest"
+admin_image    = "gcr.io/PROJECT_ID/compliance-admin:latest"
+
+# LLM API Key
+llm_api_key = "your-llm-api-key"

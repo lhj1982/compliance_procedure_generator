@@ -1,29 +1,39 @@
-output "backend_service_name" {
-  description = "Backend Cloud Run service name"
-  value       = google_cloud_run_v2_service.backend.name
-}
-
-output "backend_service_uri" {
-  description = "Backend Cloud Run service URI"
-  value       = google_cloud_run_v2_service.backend.uri
-}
-
-output "frontend_service_name" {
-  description = "Frontend Cloud Run service name"
-  value       = google_cloud_run_v2_service.frontend.name
-}
-
-output "frontend_service_uri" {
-  description = "Frontend Cloud Run service URI"
-  value       = google_cloud_run_v2_service.frontend.uri
-}
-
-output "frontend_load_balancer_ip" {
-  description = "Frontend Load Balancer IP address"
-  value       = google_compute_forwarding_rule.frontend.ip_address
+output "load_balancer_ip" {
+  description = "External IP address of the load balancer"
+  value       = google_compute_global_address.default.address
 }
 
 output "frontend_url" {
-  description = "Frontend public URL"
-  value       = "http://${google_compute_forwarding_rule.frontend.ip_address}"
+  description = "Cloud Run frontend service URL"
+  value       = google_cloud_run_v2_service.frontend.uri
+}
+
+output "backend_url" {
+  description = "Cloud Run backend service URL"
+  value       = google_cloud_run_v2_service.backend.uri
+}
+
+output "admin_url" {
+  description = "Cloud Run admin service URL"
+  value       = google_cloud_run_v2_service.admin.uri
+}
+
+output "bastion_instance_name" {
+  description = "Bastion host instance name"
+  value       = google_compute_instance.bastion.name
+}
+
+output "bastion_zone" {
+  description = "Bastion host zone"
+  value       = google_compute_instance.bastion.zone
+}
+
+output "bastion_ssh_command" {
+  description = "Command to SSH into bastion via IAP"
+  value       = "gcloud compute ssh ${google_compute_instance.bastion.name} --zone=${google_compute_instance.bastion.zone} --tunnel-through-iap --project=${var.project_id}"
+}
+
+output "db_proxy_command" {
+  description = "Command to start Cloud SQL proxy on bastion"
+  value       = "cloud_sql_proxy -instances=${var.db_connection_name}=tcp:5432"
 }
