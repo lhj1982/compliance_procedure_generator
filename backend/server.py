@@ -32,7 +32,8 @@ DB_CONFIG = {
     'database': os.getenv('DB_NAME', 'compliance_admin'),
     'user': os.getenv('DB_USER', 'postgres'),
     'password': os.getenv('DB_PASSWORD', 'password'),
-    'port': os.getenv('DB_PORT', '5432')
+    'port': os.getenv('DB_PORT', '5432'),
+    'sslmode': os.getenv('DB_SSL_MODE', 'prefer')
 }
 
 client = OpenAI(

@@ -283,7 +283,6 @@ class ComplianceApp {
             input.id = question.id;
             input.name = question.id;
             input.placeholder = question.placeholder;
-            input.required = true;
 
             formGroup.appendChild(input);
             questionDiv.appendChild(formGroup);
@@ -306,18 +305,23 @@ class ComplianceApp {
 
         // Use currentQuestions instead of COMPLIANCE_QUESTIONS
         const questions = this.currentQuestions.length > 0 ? this.currentQuestions : COMPLIANCE_QUESTIONS;
+        let hasAtLeastOneAnswer = false;
         questions.forEach(question => {
             const input = document.getElementById(question.id);
-            if (input && input.value.trim()) {
+            if (input) {
                 formData.answers[question.id] = {
                     question: question.question,
-                    answer: input.value.trim()
+                    answer: input.value
                 };
+                // Check if at least one question has a non-empty answer
+                if (input.value.trim()) {
+                    hasAtLeastOneAnswer = true;
+                }
             }
         });
 
         // Validate that at least some questions are answered
-        if (Object.keys(formData.answers).length === 0) {
+        if (!hasAtLeastOneAnswer) {
             alert('Please answer at least one question before submitting.');
             return;
         }
