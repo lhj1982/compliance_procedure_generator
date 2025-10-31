@@ -50,3 +50,10 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.0.0.0/16"
 }
+
+variable "llm_api_key" {
+  description = "LLM API key for backend"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

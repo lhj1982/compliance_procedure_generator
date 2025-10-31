@@ -57,3 +57,51 @@ output "region" {
   description = "GCP region"
   value       = var.region
 }
+
+# Artifact Registry outputs
+output "gen_backend_repository" {
+  description = "Generator backend Artifact Registry repository"
+  value       = google_artifact_registry_repository.gen_backend.name
+}
+
+output "gen_frontend_repository" {
+  description = "Generator frontend Artifact Registry repository"
+  value       = google_artifact_registry_repository.gen_frontend.name
+}
+
+output "admin_backend_repository" {
+  description = "Admin backend Artifact Registry repository"
+  value       = google_artifact_registry_repository.admin_backend.name
+}
+
+output "admin_frontend_repository" {
+  description = "Admin frontend Artifact Registry repository"
+  value       = google_artifact_registry_repository.admin_frontend.name
+}
+
+# Storage outputs
+output "documents_bucket_name" {
+  description = "Cloud Storage bucket for documents"
+  value       = google_storage_bucket.documents.name
+}
+
+output "documents_bucket_url" {
+  description = "Cloud Storage bucket URL"
+  value       = google_storage_bucket.documents.url
+}
+
+# Secret Manager outputs
+output "cp_gen_secrets_id" {
+  description = "Combined secrets Secret Manager ID"
+  value       = google_secret_manager_secret.cp_gen_secrets.secret_id
+}
+
+output "llm_api_key_secret_id" {
+  description = "LLM API Key Secret Manager ID"
+  value       = google_secret_manager_secret.llm_api_key.secret_id
+}
+
+output "db_password_secret_id" {
+  description = "DB Password Secret Manager ID"
+  value       = google_secret_manager_secret.db_password.secret_id
+}

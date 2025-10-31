@@ -36,7 +36,7 @@ resource "google_cloud_run_v2_service" "backend" {
         name = "DB_PASSWORD"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.db_password.secret_id
+            secret  = var.db_password_secret_id
             version = "latest"
           }
         }
@@ -46,10 +46,15 @@ resource "google_cloud_run_v2_service" "backend" {
         name = "LLM_API_KEY"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.llm_api_key.secret_id
+            secret  = var.llm_api_key_secret_id
             version = "latest"
           }
         }
+      }
+
+      env {
+        name  = "DOCUMENTS_BUCKET"
+        value = var.documents_bucket_name
       }
 
       env {
@@ -81,11 +86,6 @@ resource "google_cloud_run_v2_service" "backend" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
   }
-
-  depends_on = [
-    google_secret_manager_secret_version.db_password,
-    google_secret_manager_secret_version.llm_api_key
-  ]
 }
 
 # Frontend Service (Public - serves static files and proxies to backend)
@@ -176,10 +176,15 @@ resource "google_cloud_run_v2_service" "admin" {
         name = "DB_PASSWORD"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.db_password.secret_id
+            secret  = var.db_password_secret_id
             version = "latest"
           }
         }
+      }
+
+      env {
+        name  = "DOCUMENTS_BUCKET"
+        value = var.documents_bucket_name
       }
 
       env {
@@ -211,8 +216,6 @@ resource "google_cloud_run_v2_service" "admin" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
   }
-
-  depends_on = [google_secret_manager_secret_version.db_password]
 }
 
 # IAM policy for backend - allow only VPC and load balancer access

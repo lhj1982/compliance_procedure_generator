@@ -88,3 +88,18 @@ variable "vpc_name" {
   description = "VPC network name"
   type        = string
 }
+
+variable "db_password_secret_id" {
+  description = "Secret Manager secret ID for database password"
+  type        = string
+}
+
+variable "llm_api_key_secret_id" {
+  description = "Secret Manager secret ID for LLM API key"
+  type        = string
+}
+
+variable "documents_bucket_name" {
+  description = "Cloud Storage bucket name for documents"
+  type        = string
+}
