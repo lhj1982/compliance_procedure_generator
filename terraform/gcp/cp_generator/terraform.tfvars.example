@@ -55,8 +55,12 @@ documents_bucket_name = "compliance-procedure-documents-dev-123456789012"
 # ============================================================================
 # Images should be pushed to Artifact Registry repositories created by infrastructure module
 # Format: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY_NAME/IMAGE_NAME:TAG
+#
+# Generator images (separate frontend and backend):
 frontend_image = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-frontend/frontend:latest"
 backend_image  = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-backend/backend:latest"
+
+# Admin image (currently commented out in cloud_run.tf):
 admin_image    = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-admin-backend/admin:latest"
 
 # ============================================================================

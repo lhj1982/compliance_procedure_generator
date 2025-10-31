@@ -25,14 +25,13 @@ vpc_cidr = "10.0.0.0/16"  # Main VPC CIDR block
 # Images will be stored in Artifact Registry repositories created by the infrastructure module
 # Format: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY_NAME/IMAGE_NAME:TAG
 #
-# Example after initial deployment:
-# frontend_image = "us-central1-docker.pkg.dev/your-project-id/compliance-procedure-gen-frontend/frontend:latest"
-# backend_image  = "us-central1-docker.pkg.dev/your-project-id/compliance-procedure-gen-backend/backend:latest"
-# admin_image    = "us-central1-docker.pkg.dev/your-project-id/compliance-procedure-admin-backend/admin:latest"
+# Build and push images using: ./terraform/gcp/scripts/build_and_push.sh <project-id> <region> [tag]
 #
-# For initial deployment, you can use placeholder images or build and push your images first:
+# Generator images (separate frontend and backend):
 frontend_image = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-frontend/frontend:latest"
 backend_image  = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-backend/backend:latest"
+
+# Admin image (currently commented out in Terraform - will be enabled later):
 admin_image    = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-admin-backend/admin:latest"
 
 # ============================================================================
