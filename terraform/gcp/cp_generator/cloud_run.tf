@@ -1,6 +1,6 @@
 # Backend Service (Private - only accessible via VPC)
 resource "google_cloud_run_v2_service" "backend" {
-  name     = "compliance-backend-${var.environment}"
+  name     = "${var.app_name}-backend-${var.environment}"
   location = var.region
   project  = var.project_id
 
@@ -90,7 +90,7 @@ resource "google_cloud_run_v2_service" "backend" {
 
 # Frontend Service (Public - serves static files and proxies to backend)
 resource "google_cloud_run_v2_service" "frontend" {
-  name     = "compliance-frontend-${var.environment}"
+  name     = "${var.app_name}-frontend-${var.environment}"
   location = var.region
   project  = var.project_id
 
@@ -140,7 +140,7 @@ resource "google_cloud_run_v2_service" "frontend" {
 
 # Admin Service (Private - only accessible via VPC)
 resource "google_cloud_run_v2_service" "admin" {
-  name     = "compliance-admin-${var.environment}"
+  name     = "${var.app_name}-admin-${var.environment}"
   location = var.region
   project  = var.project_id
 
@@ -244,7 +244,7 @@ resource "google_cloud_run_v2_service_iam_member" "frontend_public" {
 
 # Service account for frontend to invoke backend services
 resource "google_service_account" "frontend" {
-  account_id   = "compliance-frontend-${var.environment}"
+  account_id   = "${var.app_name}-frontend-${var.environment}"
   display_name = "Compliance Frontend Service Account"
   project      = var.project_id
 }

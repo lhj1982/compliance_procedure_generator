@@ -1,12 +1,12 @@
 # Reserve a static external IP address for the load balancer
 resource "google_compute_global_address" "default" {
-  name    = "compliance-lb-ip-${var.environment}"
+  name    = "${var.app_name}-lb-ip-${var.environment}"
   project = var.project_id
 }
 
 # Backend service for Cloud Run frontend
 resource "google_compute_region_network_endpoint_group" "frontend_neg" {
-  name                  = "compliance-frontend-neg-${var.environment}"
+  name                  = "${var.app_name}-frontend-neg-${var.environment}"
   network_endpoint_type = "SERVERLESS"
   region                = var.region
   project               = var.project_id
@@ -17,7 +17,7 @@ resource "google_compute_region_network_endpoint_group" "frontend_neg" {
 }
 
 resource "google_compute_backend_service" "frontend" {
-  name        = "compliance-frontend-backend-${var.environment}"
+  name        = "${var.app_name}-frontend-backend-${var.environment}"
   protocol    = "HTTP"
   port_name   = "http"
   timeout_sec = 30
@@ -35,7 +35,7 @@ resource "google_compute_backend_service" "frontend" {
 
 # URL map for routing
 resource "google_compute_url_map" "default" {
-  name            = "compliance-url-map-${var.environment}"
+  name            = "${var.app_name}-url-map-${var.environment}"
   default_service = google_compute_backend_service.frontend.id
   project         = var.project_id
 
@@ -58,14 +58,14 @@ resource "google_compute_url_map" "default" {
 
 # HTTP proxy
 resource "google_compute_target_http_proxy" "default" {
-  name    = "compliance-http-proxy-${var.environment}"
+  name    = "${var.app_name}-http-proxy-${var.environment}"
   url_map = google_compute_url_map.default.id
   project = var.project_id
 }
 
 # Global forwarding rule (HTTP)
 resource "google_compute_global_forwarding_rule" "http" {
-  name                  = "compliance-http-lb-${var.environment}"
+  name                  = "${var.app_name}-http-lb-${var.environment}"
   target                = google_compute_target_http_proxy.default.id
   port_range            = "80"
   ip_address            = google_compute_global_address.default.address
@@ -76,7 +76,7 @@ resource "google_compute_global_forwarding_rule" "http" {
 # SSL Certificate (optional, for HTTPS)
 # Uncomment and configure if you have a domain
 # resource "google_compute_managed_ssl_certificate" "default" {
-#   name    = "compliance-ssl-cert-${var.environment}"
+#   name    = "${var.app_name}-ssl-cert-${var.environment}"
 #   project = var.project_id
 #
 #   managed {
@@ -86,7 +86,7 @@ resource "google_compute_global_forwarding_rule" "http" {
 
 # HTTPS proxy (optional)
 # resource "google_compute_target_https_proxy" "default" {
-#   name             = "compliance-https-proxy-${var.environment}"
+#   name             = "${var.app_name}-https-proxy-${var.environment}"
 #   url_map          = google_compute_url_map.default.id
 #   ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
 #   project          = var.project_id
@@ -94,7 +94,7 @@ resource "google_compute_global_forwarding_rule" "http" {
 
 # Global forwarding rule (HTTPS - optional)
 # resource "google_compute_global_forwarding_rule" "https" {
-#   name                  = "compliance-https-lb-${var.environment}"
+#   name                  = "${var.app_name}-https-lb-${var.environment}"
 #   target                = google_compute_target_https_proxy.default.id
 #   port_range            = "443"
 #   ip_address            = google_compute_global_address.default.address

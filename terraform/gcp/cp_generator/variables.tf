@@ -8,6 +8,11 @@ variable "region" {
   type        = string
 }
 
+variable "app_name" {
+  description = "Application name used for resource naming"
+  type        = string
+}
+
 variable "environment" {
   description = "Environment name"
   type        = string

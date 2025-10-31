@@ -1,3 +1,6 @@
+# This file is not used when deploying via root module
+# Use ../terraform.tfvars instead
+
 # GCP Project Configuration
 project_id = "your-gcp-project-id"
 region     = "us-central1"
@@ -7,7 +10,10 @@ app_name    = "compliance-procedure"
 environment = "dev"
 
 # Database Configuration
+db_tier     = "db-f1-micro"
+db_name     = "compliance_db"
+db_user     = "compliance_user"
 db_password = "your-secure-database-password"
 
-# LLM API Configuration
-llm_api_key = "your-llm-api-key"
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"

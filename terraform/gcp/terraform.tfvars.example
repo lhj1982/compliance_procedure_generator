@@ -1,6 +1,7 @@
 # GCP Project Configuration
 project_id  = "your-gcp-project-id"
 region      = "us-central1"
+app_name    = "compliance-procedure"
 environment = "dev"
 
 # Database Configuration

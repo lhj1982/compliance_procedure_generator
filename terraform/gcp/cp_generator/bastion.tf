@@ -3,14 +3,14 @@
 
 # Service account for bastion
 resource "google_service_account" "bastion" {
-  account_id   = "compliance-bastion-${var.environment}"
+  account_id   = "${var.app_name}-bastion-${var.environment}"
   display_name = "Bastion Host Service Account"
   project      = var.project_id
 }
 
 # Bastion host instance
 resource "google_compute_instance" "bastion" {
-  name         = "compliance-bastion-${var.environment}"
+  name         = "${var.app_name}-bastion-${var.environment}"
   machine_type = "e2-micro" # Cheapest machine type
   zone         = "${var.region}-a"
   project      = var.project_id
@@ -67,7 +67,7 @@ resource "google_compute_instance" "bastion" {
 
 # Firewall rule for bastion SSH access via IAP
 resource "google_compute_firewall" "bastion_ssh" {
-  name    = "compliance-bastion-ssh-${var.environment}"
+  name    = "${var.app_name}-bastion-ssh-${var.environment}"
   network = var.vpc_name
   project = var.project_id
 
@@ -84,7 +84,7 @@ resource "google_compute_firewall" "bastion_ssh" {
 # Optional: Firewall rule for bastion to access from specific IPs
 # Uncomment if you want direct SSH access (not recommended, use IAP instead)
 # resource "google_compute_firewall" "bastion_external_ssh" {
-#   name    = "compliance-bastion-external-ssh-${var.environment}"
+#   name    = "${var.app_name}-bastion-external-ssh-${var.environment}"
 #   network = var.vpc_name
 #   project = var.project_id
 #

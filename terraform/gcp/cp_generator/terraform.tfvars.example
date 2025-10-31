@@ -1,3 +1,6 @@
+# This file is not used when deploying via root module
+# Use ../terraform.tfvars instead
+
 # GCP Project Configuration
 project_id = "your-gcp-project-id"
 region     = "us-central1"
@@ -6,21 +9,22 @@ region     = "us-central1"
 app_name    = "compliance-procedure"
 environment = "dev"
 
-# LLM Configuration
-llm_base_url = "https://api.openai.com/v1"
+# VPC Configuration (from infrastructure module outputs)
+vpc_connector_id   = "projects/PROJECT_ID/locations/REGION/connectors/NAME"
+vpc_name           = "compliance-procedure-vpc-dev"
+public_subnet_name = "compliance-procedure-public-subnet-dev"
 
-# Infrastructure Resource Identifiers (from infrastructure module outputs)
-# Run `cd ../infrastructure && terraform output` to get these values
+# Database Configuration (from infrastructure module outputs)
+db_connection_name = "PROJECT_ID:REGION:INSTANCE_NAME"
+db_name            = "compliance_db"
+db_user            = "compliance_user"
+db_password        = "your-secure-database-password"
+db_private_ip      = "10.0.0.0"
 
-vpc_connector_name = "compliance-procedure-vpc-connector"
-sql_instance_name  = "compliance-procedure-db-dev"
-database_name      = "compliance_admin"
-storage_bucket_name = "your-project-id-compliance-procedure-documents-dev"
-secret_manager_secret_id = "compliance-procedure-gen-secrets-dev"
+# Docker Images
+frontend_image = "gcr.io/PROJECT_ID/compliance-frontend:latest"
+backend_image  = "gcr.io/PROJECT_ID/compliance-backend:latest"
+admin_image    = "gcr.io/PROJECT_ID/compliance-admin:latest"
 
-# Artifact Registry names (just the repository name, not the full path)
-gen_backend_registry_name  = "compliance-procedure-gen-backend"
-gen_frontend_registry_name = "compliance-procedure-gen-frontend"
-
-# Service Account (just the account ID part, not the full email)
-service_account_email = "compliance-procedure-cloud-run-sa"
+# LLM API Key
+llm_api_key = "your-llm-api-key"

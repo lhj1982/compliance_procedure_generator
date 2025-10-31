@@ -1,6 +1,6 @@
 # Cloud SQL PostgreSQL Instance
 resource "google_sql_database_instance" "main" {
-  name             = "compliance-db-${var.environment}"
+  name             = "${var.app_name}-db-${var.environment}"
   database_version = "POSTGRES_15"
   region           = var.region
   project          = var.project_id
@@ -50,7 +50,7 @@ resource "google_sql_database_instance" "main" {
 
 # Private VPC Connection for Cloud SQL
 resource "google_compute_global_address" "private_ip_address" {
-  name          = "compliance-private-ip-${var.environment}"
+  name          = "${var.app_name}-private-ip-${var.environment}"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16

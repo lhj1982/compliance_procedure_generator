@@ -9,6 +9,12 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "app_name" {
+  description = "Application name used for resource naming"
+  type        = string
+  default     = "compliance-procedure"
+}
+
 variable "environment" {
   description = "Environment name (e.g., dev, staging, prod)"
   type        = string

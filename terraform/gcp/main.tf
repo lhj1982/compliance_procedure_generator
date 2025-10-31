@@ -27,6 +27,7 @@ module "infrastructure" {
 
   project_id  = var.project_id
   region      = var.region
+  app_name    = var.app_name
   environment = var.environment
   db_tier     = var.db_tier
   db_name     = var.db_name
@@ -41,6 +42,7 @@ module "cp_generator" {
 
   project_id         = var.project_id
   region             = var.region
+  app_name           = var.app_name
   environment        = var.environment
   vpc_connector_id   = module.infrastructure.vpc_connector_id
   db_connection_name = module.infrastructure.db_connection_name

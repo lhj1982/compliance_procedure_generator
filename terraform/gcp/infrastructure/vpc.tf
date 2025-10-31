@@ -1,13 +1,13 @@
 # VPC Network
 resource "google_compute_network" "main" {
-  name                    = "compliance-vpc-${var.environment}"
+  name                    = "${var.app_name}-vpc-${var.environment}"
   auto_create_subnetworks = false
   project                 = var.project_id
 }
 
 # Public Subnet (for load balancer and bastion)
 resource "google_compute_subnetwork" "public" {
-  name          = "compliance-public-subnet-${var.environment}"
+  name          = "${var.app_name}-public-subnet-${var.environment}"
   ip_cidr_range = cidrsubnet(var.vpc_cidr, 8, 1)
   region        = var.region
   network       = google_compute_network.main.id
@@ -22,7 +22,7 @@ resource "google_compute_subnetwork" "public" {
 
 # Private Subnet (for Cloud Run and Cloud SQL)
 resource "google_compute_subnetwork" "private" {
-  name          = "compliance-private-subnet-${var.environment}"
+  name          = "${var.app_name}-private-subnet-${var.environment}"
   ip_cidr_range = cidrsubnet(var.vpc_cidr, 8, 2)
   region        = var.region
   network       = google_compute_network.main.id
@@ -39,7 +39,7 @@ resource "google_compute_subnetwork" "private" {
 
 # VPC Access Connector for Cloud Run
 resource "google_vpc_access_connector" "connector" {
-  name          = "compliance-vpc-connector-${var.environment}"
+  name          = "${var.app_name}-vpc-connector-${var.environment}"
   region        = var.region
   network       = google_compute_network.main.name
   ip_cidr_range = cidrsubnet(var.vpc_cidr, 8, 3)
@@ -53,7 +53,7 @@ resource "google_vpc_access_connector" "connector" {
 
 # Cloud Router for NAT
 resource "google_compute_router" "router" {
-  name    = "compliance-router-${var.environment}"
+  name    = "${var.app_name}-router-${var.environment}"
   region  = var.region
   network = google_compute_network.main.id
   project = var.project_id
@@ -61,7 +61,7 @@ resource "google_compute_router" "router" {
 
 # Cloud NAT for private subnet internet access
 resource "google_compute_router_nat" "nat" {
-  name                               = "compliance-nat-${var.environment}"
+  name                               = "${var.app_name}-nat-${var.environment}"
   router                             = google_compute_router.router.name
   region                             = var.region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -76,7 +76,7 @@ resource "google_compute_router_nat" "nat" {
 
 # Firewall rule - Allow internal communication
 resource "google_compute_firewall" "allow_internal" {
-  name    = "compliance-allow-internal-${var.environment}"
+  name    = "${var.app_name}-allow-internal-${var.environment}"
   network = google_compute_network.main.name
   project = var.project_id
 
@@ -100,7 +100,7 @@ resource "google_compute_firewall" "allow_internal" {
 
 # Firewall rule - Allow SSH from IAP (Identity-Aware Proxy)
 resource "google_compute_firewall" "allow_iap_ssh" {
-  name    = "compliance-allow-iap-ssh-${var.environment}"
+  name    = "${var.app_name}-allow-iap-ssh-${var.environment}"
   network = google_compute_network.main.name
   project = var.project_id
 
@@ -116,7 +116,7 @@ resource "google_compute_firewall" "allow_iap_ssh" {
 
 # Firewall rule - Allow health checks
 resource "google_compute_firewall" "allow_health_checks" {
-  name    = "compliance-allow-health-checks-${var.environment}"
+  name    = "${var.app_name}-allow-health-checks-${var.environment}"
   network = google_compute_network.main.name
   project = var.project_id
 

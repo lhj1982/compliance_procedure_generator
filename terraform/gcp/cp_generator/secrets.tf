@@ -1,6 +1,6 @@
 # Secret Manager for sensitive data
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "compliance-db-password-${var.environment}"
+  secret_id = "${var.app_name}-db-password-${var.environment}"
   project   = var.project_id
 
   replication {
@@ -14,7 +14,7 @@ resource "google_secret_manager_secret_version" "db_password" {
 }
 
 resource "google_secret_manager_secret" "llm_api_key" {
-  secret_id = "compliance-llm-api-key-${var.environment}"
+  secret_id = "${var.app_name}-llm-api-key-${var.environment}"
   project   = var.project_id
 
   replication {
