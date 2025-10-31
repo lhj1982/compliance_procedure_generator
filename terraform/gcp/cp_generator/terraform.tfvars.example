@@ -1,30 +1,72 @@
-# This file is not used when deploying via root module
-# Use ../terraform.tfvars instead
+# ============================================================================
+# IMPORTANT: This file is typically not used when deploying via root module
+# Use ../terraform.tfvars instead, which will pass these values automatically
+# from the infrastructure module outputs.
+#
+# This file is provided for reference and standalone module deployment only.
+# ============================================================================
 
+# ============================================================================
 # GCP Project Configuration
+# ============================================================================
 project_id = "your-gcp-project-id"
 region     = "us-central1"
 
+# ============================================================================
 # Application Configuration
+# ============================================================================
 app_name    = "compliance-procedure"
 environment = "dev"
 
+# ============================================================================
 # VPC Configuration (from infrastructure module outputs)
-vpc_connector_id   = "projects/PROJECT_ID/locations/REGION/connectors/NAME"
+# ============================================================================
+# These values come from module.infrastructure outputs when using root module
+vpc_connector_id   = "projects/PROJECT_ID/locations/REGION/connectors/compliance-procedure-connector-dev"
 vpc_name           = "compliance-procedure-vpc-dev"
 public_subnet_name = "compliance-procedure-public-subnet-dev"
 
+# ============================================================================
 # Database Configuration (from infrastructure module outputs)
-db_connection_name = "PROJECT_ID:REGION:INSTANCE_NAME"
+# ============================================================================
+# These values come from module.infrastructure outputs when using root module
+db_connection_name = "PROJECT_ID:REGION:compliance-procedure-db-dev"
 db_name            = "compliance_db"
 db_user            = "compliance_user"
-db_password        = "your-secure-database-password"
-db_private_ip      = "10.0.0.0"
+db_password        = "your-secure-database-password"  # Only used if not using Secret Manager
+db_private_ip      = "10.0.1.3"  # Example private IP from Cloud SQL
 
-# Docker Images
-frontend_image = "gcr.io/PROJECT_ID/compliance-frontend:latest"
-backend_image  = "gcr.io/PROJECT_ID/compliance-backend:latest"
-admin_image    = "gcr.io/PROJECT_ID/compliance-admin:latest"
+# ============================================================================
+# Secret Manager Configuration (from infrastructure module outputs)
+# ============================================================================
+# These secret IDs come from module.infrastructure outputs when using root module
+# The actual secret values are stored in Secret Manager, not in these variables
+db_password_secret_id  = "compliance-procedure-db-password-dev"
+llm_api_key_secret_id  = "compliance-procedure-llm-api-key-dev"
 
-# LLM API Key
+# ============================================================================
+# Cloud Storage Configuration (from infrastructure module outputs)
+# ============================================================================
+# Bucket name comes from module.infrastructure outputs when using root module
+documents_bucket_name = "compliance-procedure-documents-dev-123456789012"
+
+# ============================================================================
+# Docker Images Configuration
+# ============================================================================
+# Images should be pushed to Artifact Registry repositories created by infrastructure module
+# Format: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY_NAME/IMAGE_NAME:TAG
+frontend_image = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-frontend/frontend:latest"
+backend_image  = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-backend/backend:latest"
+admin_image    = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-admin-backend/admin:latest"
+
+# ============================================================================
+# LLM API Key (only used if not using Secret Manager)
+# ============================================================================
+# When deploying via root module, this is stored in Secret Manager
+# This variable is kept for backward compatibility
 llm_api_key = "your-llm-api-key"
+
+# ============================================================================
+# Optional: Bastion Configuration
+# ============================================================================
+# bastion_allowed_ips = ["YOUR_IP_ADDRESS/32"]

@@ -1,22 +1,49 @@
+# ============================================================================
 # GCP Project Configuration
+# ============================================================================
 project_id  = "your-gcp-project-id"
 region      = "us-central1"
-app_name    = "compliance-procedure"
-environment = "dev"
+app_name    = "compliance-procedure"  # Used for naming all resources
+environment = "dev"                   # Options: dev, staging, prod
 
+# ============================================================================
 # Database Configuration
-db_tier     = "db-f1-micro"  # Use db-g1-small or higher for production
+# ============================================================================
+db_tier     = "db-f1-micro"           # Options: db-f1-micro (dev), db-g1-small (staging), db-n1-standard-1 (prod)
 db_name     = "compliance_db"
 db_user     = "compliance_user"
-db_password = "CHANGE_ME_STRONG_PASSWORD"
+db_password = "CHANGE_ME_STRONG_PASSWORD"  # IMPORTANT: Use a strong password and store securely
 
+# ============================================================================
 # Network Configuration
-vpc_cidr = "10.0.0.0/16"
+# ============================================================================
+vpc_cidr = "10.0.0.0/16"  # Main VPC CIDR block
 
-# Docker Images (replace PROJECT_ID with your GCP project ID)
-frontend_image = "gcr.io/PROJECT_ID/compliance-frontend:latest"
-backend_image  = "gcr.io/PROJECT_ID/compliance-backend:latest"
-admin_image    = "gcr.io/PROJECT_ID/compliance-admin:latest"
+# ============================================================================
+# Docker Images Configuration
+# ============================================================================
+# Images will be stored in Artifact Registry repositories created by the infrastructure module
+# Format: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY_NAME/IMAGE_NAME:TAG
+#
+# Example after initial deployment:
+# frontend_image = "us-central1-docker.pkg.dev/your-project-id/compliance-procedure-gen-frontend/frontend:latest"
+# backend_image  = "us-central1-docker.pkg.dev/your-project-id/compliance-procedure-gen-backend/backend:latest"
+# admin_image    = "us-central1-docker.pkg.dev/your-project-id/compliance-procedure-admin-backend/admin:latest"
+#
+# For initial deployment, you can use placeholder images or build and push your images first:
+frontend_image = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-frontend/frontend:latest"
+backend_image  = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-gen-backend/backend:latest"
+admin_image    = "us-central1-docker.pkg.dev/PROJECT_ID/compliance-procedure-admin-backend/admin:latest"
 
+# ============================================================================
 # LLM API Key
-llm_api_key = "your-llm-api-key"
+# ============================================================================
+# API key for LLM service (e.g., OpenAI, Anthropic, etc.)
+# This will be stored in Secret Manager
+llm_api_key = "your-llm-api-key"  # IMPORTANT: Replace with your actual API key
+
+# ============================================================================
+# Optional: Bastion Configuration
+# ============================================================================
+# Uncomment and configure if you need to restrict bastion access to specific IPs
+# bastion_allowed_ips = ["YOUR_IP_ADDRESS/32"]
