@@ -89,13 +89,8 @@ variable "vpc_name" {
   type        = string
 }
 
-variable "db_password_secret_id" {
-  description = "Secret Manager secret ID for database password"
-  type        = string
-}
-
-variable "llm_api_key_secret_id" {
-  description = "Secret Manager secret ID for LLM API key"
+variable "app_secrets_id" {
+  description = "Secret Manager secret ID containing application secrets (JSON with llm_api_key and db_password)"
   type        = string
 }
 

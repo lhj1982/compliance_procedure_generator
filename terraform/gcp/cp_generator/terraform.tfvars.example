@@ -39,10 +39,9 @@ db_private_ip      = "10.0.1.3"  # Example private IP from Cloud SQL
 # ============================================================================
 # Secret Manager Configuration (from infrastructure module outputs)
 # ============================================================================
-# These secret IDs come from module.infrastructure outputs when using root module
-# The actual secret values are stored in Secret Manager, not in these variables
-db_password_secret_id  = "compliance-procedure-db-password-dev"
-llm_api_key_secret_id  = "compliance-procedure-llm-api-key-dev"
+# This secret ID comes from module.infrastructure outputs when using root module
+# The secret contains a JSON structure: {"llm_api_key": "value", "db_password": "value"}
+app_secrets_id = "compliance-procedure-secrets-dev"
 
 # ============================================================================
 # Cloud Storage Configuration (from infrastructure module outputs)

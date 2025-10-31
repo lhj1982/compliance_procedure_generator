@@ -1,8 +1,8 @@
 # Secret Manager for sensitive data (GCP equivalent of AWS Secrets Manager)
+# Using a single secret with JSON structure containing multiple key-value pairs
 
-# Combined secret for LLM API Key and DB password
-resource "google_secret_manager_secret" "cp_gen_secrets" {
-  secret_id = "${var.app_name}-gen-secrets-${var.environment}"
+resource "google_secret_manager_secret" "app_secrets" {
+  secret_id = "${var.app_name}-secrets-${var.environment}"
   project   = var.project_id
 
   replication {
@@ -10,57 +10,24 @@ resource "google_secret_manager_secret" "cp_gen_secrets" {
   }
 
   labels = {
-    name        = "${var.app_name}-gen-secrets"
+    name        = "${var.app_name}-secrets"
     environment = var.environment
   }
 }
 
-# Note: The actual secret value should be set via:
-# gcloud secrets versions add SECRET_NAME --data-file=- <<EOF
-# {
-#   "llm_api_key": "your-key",
-#   "db_password": "your-password"
-# }
-# EOF
+# Create secret version with JSON structure containing all secrets
+# Format: {"llm_api_key": "value", "db_password": "value"}
+resource "google_secret_manager_secret_version" "app_secrets" {
+  secret = google_secret_manager_secret.app_secrets.id
 
-# Or you can create separate secrets for each value:
-resource "google_secret_manager_secret" "llm_api_key" {
-  secret_id = "${var.app_name}-llm-api-key-${var.environment}"
-  project   = var.project_id
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    name        = "${var.app_name}-llm-api-key"
-    environment = var.environment
-  }
+  secret_data = jsonencode({
+    llm_api_key = var.llm_api_key
+    db_password = var.db_password
+  })
 }
 
-resource "google_secret_manager_secret" "db_password" {
-  secret_id = "${var.app_name}-db-password-${var.environment}"
-  project   = var.project_id
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    name        = "${var.app_name}-db-password"
-    environment = var.environment
-  }
-}
-
-# Secret versions - only create if values are provided
-resource "google_secret_manager_secret_version" "llm_api_key" {
-  count = var.llm_api_key != "" ? 1 : 0
-
-  secret      = google_secret_manager_secret.llm_api_key.id
-  secret_data = var.llm_api_key
-}
-
-resource "google_secret_manager_secret_version" "db_password" {
-  secret      = google_secret_manager_secret.db_password.id
-  secret_data = var.db_password
-}
+# Note: To update secrets after deployment, use:
+# echo '{"llm_api_key":"your-new-key","db_password":"your-new-password"}' | \
+#   gcloud secrets versions add ${var.app_name}-secrets-${var.environment} --data-file=-
+#
+# Or use the GCP Console to add a new version with the JSON structure

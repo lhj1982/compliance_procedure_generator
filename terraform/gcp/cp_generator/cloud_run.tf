@@ -5,6 +5,8 @@ resource "google_cloud_run_v2_service" "backend" {
   project  = var.project_id
 
   template {
+    service_account = google_service_account.backend.email
+
     containers {
       image = var.backend_image
 
@@ -32,21 +34,14 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.db_user
       }
 
+      # Application secrets as JSON from Secret Manager
+      # The secret contains: {"llm_api_key": "value", "db_password": "value"}
+      # Backend should parse this JSON to extract individual values
       env {
-        name = "DB_PASSWORD"
+        name = "APP_SECRETS"
         value_source {
           secret_key_ref {
-            secret  = var.db_password_secret_id
-            version = "latest"
-          }
-        }
-      }
-
-      env {
-        name = "LLM_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = var.llm_api_key_secret_id
+            secret  = var.app_secrets_id
             version = "latest"
           }
         }
@@ -60,6 +55,11 @@ resource "google_cloud_run_v2_service" "backend" {
       env {
         name  = "NODE_ENV"
         value = var.environment
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
       }
 
       resources {
@@ -95,6 +95,8 @@ resource "google_cloud_run_v2_service" "frontend" {
   project  = var.project_id
 
   template {
+    service_account = google_service_account.frontend.email
+
     containers {
       image = var.frontend_image
 

@@ -91,17 +91,12 @@ output "documents_bucket_url" {
 }
 
 # Secret Manager outputs
-output "cp_gen_secrets_id" {
-  description = "Combined secrets Secret Manager ID"
-  value       = google_secret_manager_secret.cp_gen_secrets.secret_id
+output "app_secrets_id" {
+  description = "Application secrets Secret Manager ID (contains llm_api_key and db_password as JSON)"
+  value       = google_secret_manager_secret.app_secrets.secret_id
 }
 
-output "llm_api_key_secret_id" {
-  description = "LLM API Key Secret Manager ID"
-  value       = google_secret_manager_secret.llm_api_key.secret_id
-}
-
-output "db_password_secret_id" {
-  description = "DB Password Secret Manager ID"
-  value       = google_secret_manager_secret.db_password.secret_id
+output "app_secrets_name" {
+  description = "Application secrets Secret Manager name (full resource name)"
+  value       = google_secret_manager_secret.app_secrets.name
 }
