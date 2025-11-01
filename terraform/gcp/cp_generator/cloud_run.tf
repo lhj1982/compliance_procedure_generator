@@ -221,13 +221,22 @@ resource "google_cloud_run_v2_service" "frontend" {
 #   }
 # }
 
-# IAM policy for backend - allow only VPC and load balancer access
-resource "google_cloud_run_v2_service_iam_member" "backend_invoker" {
-  name   = google_cloud_run_v2_service.backend.name
+# IAM policy for backend - allow frontend to invoke
+resource "google_cloud_run_v2_service_iam_member" "backend_frontend_invoker" {
+  name     = google_cloud_run_v2_service.backend.name
   location = var.region
   project  = var.project_id
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.frontend.email}"
+}
+
+# IAM policy for backend - allow bastion to invoke (for testing)
+resource "google_cloud_run_v2_service_iam_member" "backend_bastion_invoker" {
+  name     = google_cloud_run_v2_service.backend.name
+  location = var.region
+  project  = var.project_id
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.bastion.email}"
 }
 
 # IAM policy for admin - allow only VPC and load balancer access

@@ -1,15 +1,10 @@
-output "load_balancer_ip" {
-  description = "External IP address of the load balancer"
-  value       = google_compute_global_address.default.address
-}
-
 output "frontend_url" {
-  description = "Cloud Run frontend service URL"
+  description = "Public URL for the frontend service (use this to access the application)"
   value       = google_cloud_run_v2_service.frontend.uri
 }
 
 output "backend_url" {
-  description = "Cloud Run backend service URL"
+  description = "Private backend service URL (only accessible from frontend and bastion)"
   value       = google_cloud_run_v2_service.backend.uri
 }
 
@@ -31,4 +26,9 @@ output "bastion_ssh_command" {
 output "db_proxy_command" {
   description = "Command to start Cloud SQL proxy on bastion"
   value       = "cloud_sql_proxy -instances=${var.db_connection_name}=tcp:5432"
+}
+
+output "test_backend_command" {
+  description = "Command to test backend from bastion (run this after SSHing to bastion)"
+  value       = "TOKEN=$(gcloud auth print-identity-token) && curl -H \"Authorization: Bearer $TOKEN\" ${google_cloud_run_v2_service.backend.uri}/health"
 }
