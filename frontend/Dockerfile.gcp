@@ -30,19 +30,17 @@ server {
     }
 
     # Proxy API requests to backend
-    # Requests to /api/* are forwarded to backend
-    # Example: /api/questions -> backend/api/questions
+    # Requests to /api/* are forwarded to backend with /api/ path preserved
+    # Example: /api/teams -> https://backend.run.app/api/teams
     location /api/ {
         resolver 169.254.169.254 valid=10s;
 
-        # Forward to backend, keeping /api/ path
-        # If backend expects /questions instead of /api/questions, use:
-        # rewrite ^/api/(.*) /$1 break;
-        set $backend_url ${BACKEND_URL};
-        proxy_pass $backend_url;
+        # Construct full backend URL with /api/ path
+        # $request_uri contains the full path including /api/
+        # We need to pass the full URL including the path
+        proxy_pass ${BACKEND_URL}$request_uri;
 
-        # Don't override Host - let Cloud Run handle it
-        # proxy_set_header Host is NOT needed for Cloud Run internal calls
+        # Standard proxy headers
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
