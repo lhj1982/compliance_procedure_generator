@@ -7,6 +7,12 @@ resource "google_cloud_run_v2_service" "backend" {
   # Allow only internal VPC traffic and authenticated requests
   ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
+  # Ensure IAM roles are set before deploying backend
+  depends_on = [
+    google_secret_manager_secret_iam_member.backend_secret_access,
+    google_storage_bucket_iam_member.backend_storage_access
+  ]
+
   template {
     service_account = google_service_account.backend.email
 
