@@ -35,18 +35,27 @@ server {
     location /api/ {
         resolver 169.254.169.254 valid=10s;
 
-        # Construct full backend URL with /api/ path
-        # $request_uri contains the full path including /api/
-        # We need to pass the full URL including the path
+        # Debug logging - print what we're actually proxying
+        # These will show in nginx access logs
         set $backend_url ${BACKEND_URL};
-        proxy_pass $backend_url;
+
+        # Log the full URL being proxied to stderr
+        error_log /dev/stderr info;
+
+        # Add custom header to see in backend logs what nginx sent
+        proxy_set_header X-Debug-Request-Uri $request_uri;
+        proxy_set_header X-Debug-Uri $uri;
+        proxy_set_header X-Debug-Backend-Url $backend_url;
+
+        # When using a variable in proxy_pass, nginx doesn't append URI automatically
+        # We must explicitly include $uri (the normalized request URI) and query args
+        proxy_pass $backend_url$uri$is_args$args;
 
         # Standard proxy headers
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        # proxy_set_header X-Forwarded-Host $host;
 
         # Increase timeouts for LLM processing
         proxy_connect_timeout 60s;
