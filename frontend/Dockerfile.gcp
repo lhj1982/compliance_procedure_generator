@@ -30,8 +30,11 @@ server {
     }
 
     # Proxy API requests to backend
+    # Note: This is a simple proxy. For Cloud Run to Cloud Run authentication,
+    # the backend should be configured to allow the frontend service account.
+    # Cloud Run automatically adds authentication when services are in the same project.
     location /api/ {
-        resolver 169.254.169.254;
+        resolver 169.254.169.254 valid=10s;
 
         set $backend_url ${BACKEND_URL};
         proxy_pass $backend_url;
