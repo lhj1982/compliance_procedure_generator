@@ -1,24 +1,22 @@
 # GCP-specific Dockerfile for compliance procedure generator frontend
+# Simple static file server - backend API is called directly from browser
 FROM nginx:alpine
 
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Create templates directory
-RUN mkdir -p /etc/nginx/templates
-
 # Copy frontend files
 COPY index.html /usr/share/nginx/html/
 COPY static /usr/share/nginx/html/static/
 
-# Create nginx config template with fixed port
-RUN cat > /etc/nginx/templates/default.conf.template << 'EOF'
+# Create simple nginx config
+RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
 server {
-    # Fixed port for frontend
+    # Fixed port for Cloud Run
     listen 8082;
     server_name _;
 
-    # Enable error logging for debugging
+    # Enable logging
     error_log /dev/stderr info;
     access_log /dev/stdout combined;
 
@@ -27,47 +25,11 @@ server {
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
         index index.html;
-    }
 
-    # Proxy API requests to backend
-    # Requests to /api/* are forwarded to backend with /api/ path preserved
-    # Example: /api/teams -> https://backend.run.app/api/teams
-    location /api/ {
-        resolver 169.254.169.254 valid=10s;
-
-        # Set backend URL from environment variable
-        set $backend_url ${BACKEND_URL};
-
-        # Log proxy details to error log (will show in Cloud Run logs)
-        set $proxy_target "$backend_url$uri$is_args$args";
-        error_log /dev/stderr info;
-
-        # Add custom header to see in backend logs what nginx sent
-        proxy_set_header X-Debug-Request-Uri $request_uri;
-        proxy_set_header X-Debug-Uri $uri;
-        proxy_set_header X-Debug-Backend-Url $backend_url;
-        proxy_set_header X-Debug-Proxy-Target $proxy_target;
-
-        # When using a variable in proxy_pass, nginx doesn't append URI automatically
-        # We must explicitly include $uri (the normalized request URI) and query args
-        proxy_pass $proxy_target;
-
-        # Standard proxy headers
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Increase timeouts for LLM processing
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
-
-        # Disable buffering for streaming responses
-        proxy_buffering off;
-
-        # Add error logging
-        proxy_intercept_errors on;
+        # Add headers for security
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
     }
 
     # Health check endpoint
@@ -79,40 +41,8 @@ server {
 }
 EOF
 
-# Create entrypoint script
-RUN cat > /docker-entrypoint.sh << 'EOF'
-#!/bin/sh
-set -e
-
-# Set default backend URL if not provided
-if [ -z "$BACKEND_URL" ]; then
-    export BACKEND_URL="http://backend:9090"
-    echo "Using default BACKEND_URL: $BACKEND_URL"
-fi
-
-# Only substitute BACKEND_URL in nginx config
-envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
-
-echo "=========================================="
-echo "Nginx Frontend Configuration"
-echo "=========================================="
-echo "Listening on port: 8082"
-echo "Backend URL: $BACKEND_URL"
-echo "Proxy configuration: /api/* -> $BACKEND_URL/api/*"
-echo "=========================================="
-
-# Show the generated nginx config for debugging
-echo "Generated nginx config:"
-cat /etc/nginx/conf.d/default.conf
-
-# Start nginx
-exec nginx -g 'daemon off;'
-EOF
-
-RUN chmod +x /docker-entrypoint.sh
-
 # Fixed port for Cloud Run
 EXPOSE 8082
 
 # Run nginx
-CMD ["/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]

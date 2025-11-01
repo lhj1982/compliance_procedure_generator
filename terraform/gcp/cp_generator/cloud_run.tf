@@ -1,11 +1,12 @@
-# Backend Service (Private - only accessible via VPC)
+# Backend Service (Internal GCP only - accessible from Cloud Run frontend and bastion)
 resource "google_cloud_run_v2_service" "backend" {
   name     = "${var.app_name}-backend-${var.environment}"
   location = var.region
   project  = var.project_id
 
-  # Allow only internal VPC traffic and authenticated requests
-  ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  # Allow only internal GCP traffic (other Cloud Run services, Cloud Functions, etc.)
+  # This is more permissive than INTERNAL_LOAD_BALANCER but still blocks public internet
+  ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   # Ensure IAM roles are set before deploying backend
   depends_on = [
@@ -102,7 +103,7 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 }
 
-# Frontend Service (Public - serves static files and proxies to backend)
+# Frontend Service (Public - serves static files, calls backend API directly from browser)
 resource "google_cloud_run_v2_service" "frontend" {
   name     = "${var.app_name}-frontend-${var.environment}"
   location = var.region
@@ -118,10 +119,8 @@ resource "google_cloud_run_v2_service" "frontend" {
         container_port = 8082
       }
 
-      env {
-        name  = "BACKEND_URL"
-        value = google_cloud_run_v2_service.backend.uri
-      }
+      # No environment variables needed - frontend is just static files
+      # Backend URL will be embedded in the JavaScript at build time or passed via window config
 
       resources {
         limits = {
@@ -137,10 +136,8 @@ resource "google_cloud_run_v2_service" "frontend" {
       max_instance_count = var.environment == "prod" ? 10 : 5
     }
 
-    vpc_access {
-      connector = var.vpc_connector_id
-      egress    = "PRIVATE_RANGES_ONLY"
-    }
+    # Frontend doesn't need VPC access anymore since it's just serving static files
+    # Browser will call backend API directly
   }
 
   traffic {

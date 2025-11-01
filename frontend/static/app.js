@@ -104,19 +104,24 @@ class ComplianceApp {
     }
 
     getApiBaseUrl() {
-        // Prefer BACKEND_URL from environment if set (ECS/prod)
-        if (typeof BACKEND_URL !== "undefined" && BACKEND_URL) {
-            console.log('Using BACKEND_URL from environment:', BACKEND_URL);
-            return BACKEND_URL;
+        // For GCP Cloud Run - use configured backend URL
+        if (typeof window.APP_CONFIG !== 'undefined' &&
+            window.APP_CONFIG.BACKEND_URL &&
+            window.APP_CONFIG.BACKEND_URL !== 'BACKEND_URL_PLACEHOLDER') {
+            console.log('Using BACKEND_URL from APP_CONFIG:', window.APP_CONFIG.BACKEND_URL);
+            return window.APP_CONFIG.BACKEND_URL;
         }
+
         // For localhost development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             console.log('Detected localhost, using API URL: http://localhost:9090');
             return 'http://localhost:9090';
         }
-        // For Docker or production - assume backend is on same host, different port
-        const apiUrl = `${window.location.protocol}//${window.location.hostname}`;
-        console.log('Detected non-localhost, using API URL:', apiUrl);
+
+        // Fallback - shouldn't happen in production
+        console.warn('No backend URL configured! Please update config.js with backend URL');
+        const apiUrl = `${window.location.protocol}//${window.location.hostname}:9090`;
+        console.log('Using fallback API URL:', apiUrl);
         return apiUrl;
     }
 
@@ -368,7 +373,11 @@ class ComplianceApp {
         const downloadLink = document.getElementById('download-link');
 
         documentName.textContent = result.document_name;
-        downloadLink.href = result.download_url;
+        // Ensure download URL is absolute (includes backend base URL)
+        const downloadUrl = result.download_url.startsWith('http')
+            ? result.download_url
+            : `${this.apiBaseUrl}${result.download_url}`;
+        downloadLink.href = downloadUrl;
         downloadLink.download = result.document_name;
 
         modal.classList.remove('hidden');

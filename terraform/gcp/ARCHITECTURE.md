@@ -10,21 +10,29 @@ This is a **simple, secure, and cost-effective** architecture for the compliance
 Internet
     |
     | HTTPS (443)
-    v
-[Frontend Cloud Run]  <-- Public (allUsers can invoke)
-    |                     - nginx serving static files
-    |                     - Proxies /api/* to backend
-    | VPC Connector       - Has service account with backend invoke permission
     |
-    v
-[Backend Cloud Run]   <-- Private (only frontend service account can invoke)
-    |                     - Python Flask/FastAPI
-    | VPC (Private)       - Has service account with secret & storage access
-    |
-    v
-[Cloud SQL]           <-- Private (only accessible via VPC)
-[Cloud Storage]       <-- Private (IAM controlled)
-[Secret Manager]      <-- Private (IAM controlled)
+    +------------------+------------------+
+    |                  |                  |
+    v                  v                  |
+[Frontend Cloud Run]  [Backend Cloud Run]|  <-- Both internal GCP only
+    |                  |                  |    - Frontend: Static files (nginx)
+    |                  |                  |    - Backend: Python Flask API
+    |                  |                  |
+    | Browser calls    | VPC Connector    |
+    | backend directly |                  |
+    |                  v                  v
+    |              [Cloud SQL]    [Cloud Storage]
+    |                  |          [Secret Manager]
+    |                  |
+    |                  |
+    +------------------+
+           |
+           | All requests from *.run.app domains only (GCP Cloud Run)
+           | CORS configured to allow only Cloud Run origins
+           v
+    User's Browser
+    (JavaScript makes API calls directly to backend URL)
+
 
 [Bastion VM]          <-- For admin access to database
     | IAP Tunnel (SSH)
@@ -44,27 +52,44 @@ Internet
 
 **Cost Savings**: ~$18-25/month by not using a load balancer
 
-### ✅ Direct Cloud Run Access
+### ✅ Browser-Direct API Architecture
 
-- **Frontend**: Public Cloud Run service with its own HTTPS URL
-- **Backend**: Private Cloud Run service (no `allUsers` IAM binding)
-- Frontend proxies `/api/*` requests to backend via nginx
+- **Frontend**: Public Cloud Run service serving static files only
+  - No reverse proxy, no backend URL in environment
+  - JavaScript includes backend URL in config.js
+
+- **Backend**: Internal GCP-only Cloud Run service
+  - Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY` (blocks public internet)
+  - CORS: Only accepts requests from `*.run.app` domains
+  - Browser calls backend API directly with full URL
+
+**Why This Works**:
+- Backend is NOT publicly accessible (ingress restriction)
+- But requests FROM Cloud Run frontend domain are allowed
+- Browser makes requests with `Origin: https://frontend-xxx.run.app`
+- Backend CORS validates origin is from `*.run.app`
+- This restricts backend to GCP environment only
 
 ### ✅ Two-Layer Security
 
 **Frontend (Public)**:
 - IAM: `allUsers` can invoke
 - Exposed to internet via Cloud Run's built-in HTTPS
-- No sensitive data, only static files
+- Only serves static HTML/CSS/JS files
+- No environment variables, no secrets
+- No proxy configuration needed
 
-**Backend (Private)**:
-- IAM: Only frontend service account can invoke
-- Not accessible from internet
+**Backend (Internal GCP Only)**:
+- Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY`
+- CORS: Only `*.run.app` origins accepted
+- IAM: `allUsers` can invoke (but ingress blocks public internet)
 - Handles all sensitive operations (DB, secrets, storage)
+- Only accessible from GCP Cloud Run services
 
 ### ✅ VPC Connectivity
 
-- Cloud Run services use **VPC Connector** to access private resources
+- **Backend** Cloud Run uses **VPC Connector** to access Cloud SQL
+- **Frontend** Cloud Run doesn't need VPC (just serves static files)
 - VPC has two subnets:
   - **Public subnet**: Bastion host
   - **Private subnet**: Cloud SQL
@@ -88,10 +113,10 @@ Internet
 
 ### 1. Frontend Cloud Run Service
 
-**Purpose**: Serve static files and proxy API requests to backend
+**Purpose**: Serve static HTML/CSS/JS files (no backend proxy)
 
 **Configuration**:
-- Image: Nginx with static files
+- Image: Nginx serving static files
 - Port: 8082
 - Memory: 256Mi
 - CPU: 1
@@ -99,25 +124,29 @@ Internet
 - IAM: `allUsers` can invoke (public access)
 - Service Account: `{app-name}-frontend-{env}`
 
-**Environment Variables**:
-- `BACKEND_URL`: Backend Cloud Run service URI (auto-set)
+**Environment Variables**: None needed
 
-**Network**:
-- VPC Connector for accessing backend via VPC
-- Egress: `PRIVATE_RANGES_ONLY` (saves money)
+**Network**: No VPC connector needed (just static files)
+
+**JavaScript Configuration**:
+- Backend URL configured in `static/config.js`
+- Must be updated before building frontend image
+- Example: `BACKEND_URL: "https://cp-backend-dev-xxx.run.app"`
 
 ### 2. Backend Cloud Run Service
 
 **Purpose**: Handle API requests, database operations, LLM integration
 
 **Configuration**:
-- Image: Python application
+- Image: Python Flask application
 - Port: 9090
 - Memory: 512Mi
 - CPU: 1
 - Scaling: 0-3 instances (0-10 in prod)
-- IAM: Only frontend service account can invoke (private)
+- Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY` (blocks public internet)
+- IAM: `allUsers` can invoke (but ingress restricts to GCP only)
 - Service Account: `{app-name}-backend-{env}`
+- CORS: Only `*.run.app` origins allowed
 
 **Environment Variables**:
 - `APP_SECRETS`: JSON from Secret Manager (`{"llm_api_key": "...", "db_password": "..."}`)
@@ -209,12 +238,14 @@ gcloud compute ssh bastion --tunnel-through-iap
 ## Security Model
 
 ### Public Access
-- ✅ Frontend Cloud Run service (HTTPS only)
+- ✅ Frontend Cloud Run service (HTTPS only, static files)
 
-### Private (Authenticated) Access
-- ✅ Backend Cloud Run service - Requires authentication token
-  - Frontend service account (for production traffic)
-  - Bastion service account (for testing/debugging)
+### Internal GCP Only Access
+- ✅ Backend Cloud Run service
+  - Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY` (blocks public internet)
+  - Only accessible from GCP Cloud Run services (*.run.app origins)
+  - CORS configured to reject non-Cloud Run origins
+  - Browser requests work because they come from frontend Cloud Run domain
 
 ### Private (VPC-only) Access
 - ✅ Cloud SQL database
@@ -224,21 +255,24 @@ gcloud compute ssh bastion --tunnel-through-iap
 - ✅ Secret Manager (backend service account only)
 - ✅ Cloud Storage (backend service account only)
 
-### No Public Internet Access
-- ✅ Backend Cloud Run (requires valid auth token from authorized service account)
-- ✅ Cloud SQL (VPC-only)
-- ✅ Bastion (no external IP, IAP tunnel only)
+### How Backend Security Works
+1. **Ingress Restriction**: `INGRESS_TRAFFIC_INTERNAL_ONLY` blocks direct internet access
+2. **CORS Validation**: Only accepts requests with `Origin: https://*.run.app`
+3. **Result**: Backend only responds to requests from GCP Cloud Run services
+4. **User Flow**: Browser → Frontend (*.run.app) → Backend (validates origin) → Response
 
 ## Traffic Flow
 
 ### User Request Flow
 
-1. **User** → `https://frontend-xxxxx-uc.a.run.app`
-2. **Frontend Cloud Run** → Serves static files or proxies to backend
-3. **Frontend** → Backend Cloud Run (via VPC connector)
-4. **Backend** → Cloud SQL / Secret Manager / Cloud Storage
-5. **Backend** → Returns response to Frontend
-6. **Frontend** → Returns response to User
+1. **User** → `https://frontend-xxxxx.run.app` (loads HTML/CSS/JS)
+2. **Frontend Cloud Run** → Serves static files to browser
+3. **Browser JavaScript** → Makes API call to `https://backend-xxxxx.run.app/api/teams`
+   - Request includes `Origin: https://frontend-xxxxx.run.app` header
+4. **Backend Cloud Run** → Validates CORS origin (*.run.app)
+5. **Backend** → Queries Cloud SQL / Secret Manager / Cloud Storage
+6. **Backend** → Returns JSON response to browser
+7. **Browser** → Updates UI with response data
 
 ### Admin Database Access Flow
 
@@ -282,37 +316,75 @@ The bastion can also test the backend API directly:
 ### 1. Deploy Infrastructure
 
 ```bash
-cd terraform/gcp
+cd terraform/gcp/infrastructure
 terraform init
-terraform apply -target=module.infrastructure
-```
-
-### 2. Build and Push Docker Images
-
-```bash
-./scripts/build_and_push.sh <project-id> <region>
-```
-
-### 3. Update terraform.tfvars
-
-```hcl
-frontend_image = "europe-north1-docker.pkg.dev/PROJECT/cp-gen-frontend/frontend:latest"
-backend_image  = "europe-north1-docker.pkg.dev/PROJECT/cp-gen-backend/backend:latest"
-```
-
-### 4. Deploy Application
-
-```bash
 terraform apply
 ```
 
-### 5. Get Frontend URL
+This creates: VPC, Cloud SQL, Secret Manager, Cloud Storage, Artifact Registry
+
+### 2. Deploy Backend First
+
+```bash
+cd terraform/gcp
+./scripts/build_and_push.sh <project-id> <region>
+```
+
+### 3. Update backend image in terraform.tfvars
+
+```hcl
+backend_image = "europe-north1-docker.pkg.dev/PROJECT/cp-gen-backend/backend:latest"
+```
+
+### 4. Deploy backend Cloud Run
+
+```bash
+cd terraform/gcp/cp_generator
+terraform init
+terraform apply
+```
+
+### 5. Get backend URL and update frontend config
+
+```bash
+# Get backend URL
+terraform output backend_url
+
+# Update frontend/static/config.js with the backend URL
+# Replace BACKEND_URL_PLACEHOLDER with actual backend URL
+# Example: https://cp-backend-dev-xxx.europe-north1.run.app
+```
+
+Or use the command from terraform output:
+```bash
+terraform output config_update_command
+```
+
+### 6. Build and push frontend image
+
+```bash
+cd terraform/gcp
+./scripts/build_and_push.sh <project-id> <region>
+```
+
+### 7. Update frontend image and deploy
+
+```hcl
+frontend_image = "europe-north1-docker.pkg.dev/PROJECT/cp-gen-frontend/frontend:latest"
+```
+
+```bash
+cd terraform/gcp/cp_generator
+terraform apply
+```
+
+### 8. Get Frontend URL
 
 ```bash
 terraform output frontend_url
 ```
 
-Example output: `https://cp-frontend-dev-xxxxxxxxxxxx-uc.a.run.app`
+Example output: `https://cp-frontend-dev-xxxxxxxxxxxx.europe-north1.run.app`
 
 ## Accessing the Application
 

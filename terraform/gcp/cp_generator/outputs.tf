@@ -4,8 +4,20 @@ output "frontend_url" {
 }
 
 output "backend_url" {
-  description = "Private backend service URL (only accessible from frontend and bastion)"
+  description = "Internal backend service URL (only accessible from GCP Cloud Run services and bastion)"
   value       = google_cloud_run_v2_service.backend.uri
+}
+
+output "config_update_command" {
+  description = "Command to update frontend config.js with backend URL"
+  value       = <<-EOT
+    # Update config.js with backend URL before building frontend image:
+    sed -i.bak 's|BACKEND_URL_PLACEHOLDER|${google_cloud_run_v2_service.backend.uri}|g' ../../frontend/static/config.js
+
+    # Or manually update frontend/static/config.js:
+    # Change: BACKEND_URL: "BACKEND_URL_PLACEHOLDER"
+    # To:     BACKEND_URL: "${google_cloud_run_v2_service.backend.uri}"
+  EOT
 }
 
 output "bastion_instance_name" {

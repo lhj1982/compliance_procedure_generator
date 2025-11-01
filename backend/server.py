@@ -63,7 +63,22 @@ client = OpenAI(
 )
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Configure CORS for GCP Cloud Run
+# Allow requests from frontend Cloud Run service only
+# For Cloud Run, we need to allow requests from *.run.app domains
+cors_config = {
+    "origins": [
+        # Allow all Cloud Run domains (*.run.app)
+        # This restricts to GCP Cloud Run services only
+        r"https://.*\.run\.app$"
+    ],
+    "methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "supports_credentials": True
+}
+
+CORS(app, resources={r"/api/*": cors_config})
 
 INITIAL_PROMPT = "You are given brief, informal answers from a subject-matter expert (SME). Your task is to convert those answers into a **formal, auditor-quality standard operating procedure (SOP)**.\n\n" \
 "The output must be clear, structured, and repeatable, suitable for internal control, governance, or audit review.\n\n" \
