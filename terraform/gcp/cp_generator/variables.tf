@@ -67,3 +67,13 @@ variable "service_account_email" {
   description = "Service account email for Cloud Run (just the account ID part)"
   type        = string
 }
+
+variable "vpc_id" {
+  description = "The ID of the VPC network"
+  type        = string
+}
+
+variable "private_subnet_id" {
+  description = "The ID of the private subnet for the bastion"
+  type        = string
+}

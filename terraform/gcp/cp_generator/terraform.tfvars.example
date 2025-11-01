@@ -24,3 +24,7 @@ gen_frontend_registry_name = "compliance-procedure-gen-frontend"
 
 # Service Account (just the account ID part, not the full email)
 service_account_email = "compliance-procedure-cloud-run-sa"
+
+# vpc_network_id = "projects/virtex-test-462007/global/networks/cp-network"  # Replace with your VPC network ID
+vpc_id            = "projects/virtex-test-462007/global/networks/cp-vpc"
+private_subnet_id = "cp-private-subnet"

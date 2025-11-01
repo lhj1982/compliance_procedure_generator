@@ -51,6 +51,7 @@ This Terraform configuration is split into two separate modules to isolate found
 2. **gcloud CLI**: Install and configure the gcloud CLI
    ```bash
    gcloud auth login
+   gcloud auth application-default login  # Set up application default credentials for Terraform
    gcloud config set project YOUR_PROJECT_ID
    ```
 3. **Enable Billing**: Ensure billing is enabled for your project
@@ -227,3 +228,15 @@ curl http://BACKEND_SERVICE_URI/
 - Ensure VPC Access Connector is properly configured
 - Check that Cloud SQL is configured for private IP
 - Verify service account has `cloudsql.client` role
+
+
+
+test backend using bastion server
+```
+# Get identity token
+TOKEN=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://cp-gen-backend-m2gwayie3a-lz.a.run.app)
+
+# Test the API with authentication
+curl -H "Authorization: Bearer $TOKEN" \
+  https://cp-gen-backend-m2gwayie3a-lz.a.run.app/api/teams
+```

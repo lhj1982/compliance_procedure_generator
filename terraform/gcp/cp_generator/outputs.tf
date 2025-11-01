@@ -1,29 +1,38 @@
+# Backend Service Outputs
 output "backend_service_name" {
-  description = "Backend Cloud Run service name"
+  description = "Name of the backend Cloud Run service"
   value       = google_cloud_run_v2_service.backend.name
 }
 
 output "backend_service_uri" {
-  description = "Backend Cloud Run service URI"
+  description = "URI of the backend Cloud Run service (internal)"
   value       = google_cloud_run_v2_service.backend.uri
+  sensitive   = true
 }
 
+# Frontend Service Outputs
 output "frontend_service_name" {
-  description = "Frontend Cloud Run service name"
+  description = "Name of the frontend Cloud Run service"
   value       = google_cloud_run_v2_service.frontend.name
 }
 
 output "frontend_service_uri" {
-  description = "Frontend Cloud Run service URI"
+  description = "URI of the frontend Cloud Run service (public)"
   value       = google_cloud_run_v2_service.frontend.uri
 }
 
-output "frontend_load_balancer_ip" {
-  description = "Frontend Load Balancer IP address"
-  value       = google_compute_forwarding_rule.frontend.ip_address
+# Bastion Outputs
+output "bastion_instance_name" {
+  description = "Name of the bastion instance"
+  value       = google_compute_instance.bastion.name
 }
 
-output "frontend_url" {
-  description = "Frontend public URL"
-  value       = "http://${google_compute_forwarding_rule.frontend.ip_address}"
+output "bastion_instance_zone" {
+  description = "Zone where the bastion instance is deployed"
+  value       = google_compute_instance.bastion.zone
+}
+
+output "connect_to_bastion" {
+  description = "Command to connect to bastion instance via IAP"
+  value       = "gcloud compute ssh ${google_compute_instance.bastion.name} --zone=${google_compute_instance.bastion.zone} --tunnel-through-iap"
 }

@@ -32,3 +32,9 @@ variable "llm_api_key" {
   type        = string
   sensitive   = true
 }
+
+variable "gcp_credentials" {
+  type = string
+  sensitive = true
+  description = "Google Cloud service account credentials"
+}
