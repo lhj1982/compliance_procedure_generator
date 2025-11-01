@@ -30,21 +30,34 @@ server {
     }
 
     # Proxy API requests to backend
+    # Requests to /api/* are forwarded to backend
+    # Example: /api/questions -> backend/api/questions
     location /api/ {
-        resolver 169.254.169.254;
+        resolver 169.254.169.254 valid=10s;
 
+        # Forward to backend, keeping /api/ path
+        # If backend expects /questions instead of /api/questions, use:
+        # rewrite ^/api/(.*) /$1 break;
         set $backend_url ${BACKEND_URL};
         proxy_pass $backend_url;
 
-        proxy_set_header Host $host;
+        # Don't override Host - let Cloud Run handle it
+        # proxy_set_header Host is NOT needed for Cloud Run internal calls
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
 
-        # Timeouts
+        # Increase timeouts for LLM processing
         proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+
+        # Disable buffering for streaming responses
+        proxy_buffering off;
+
+        # Add error logging
+        proxy_intercept_errors on;
     }
 
     # Health check endpoint

@@ -30,5 +30,5 @@ output "db_proxy_command" {
 
 output "test_backend_command" {
   description = "Command to test backend from bastion (run this after SSHing to bastion)"
-  value       = "TOKEN=$(gcloud auth print-identity-token) && curl -H \"Authorization: Bearer $TOKEN\" ${google_cloud_run_v2_service.backend.uri}/health"
+  value       = "curl ${google_cloud_run_v2_service.backend.uri}/health"
 }

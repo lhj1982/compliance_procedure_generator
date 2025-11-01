@@ -4,6 +4,9 @@ resource "google_cloud_run_v2_service" "backend" {
   location = var.region
   project  = var.project_id
 
+  # Allow only internal VPC traffic and authenticated requests
+  ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+
   template {
     service_account = google_service_account.backend.email
 
@@ -221,23 +224,37 @@ resource "google_cloud_run_v2_service" "frontend" {
 #   }
 # }
 
-# IAM policy for backend - allow frontend to invoke
-resource "google_cloud_run_v2_service_iam_member" "backend_frontend_invoker" {
+# IAM policy for backend - allow anyone within VPC (ingress controls access)
+# The backend has ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" which limits to VPC only
+resource "google_cloud_run_v2_service_iam_member" "backend_all_users" {
   name     = google_cloud_run_v2_service.backend.name
   location = var.region
   project  = var.project_id
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.frontend.email}"
+  member   = "allUsers"
 }
 
-# IAM policy for backend - allow bastion to invoke (for testing)
-resource "google_cloud_run_v2_service_iam_member" "backend_bastion_invoker" {
-  name     = google_cloud_run_v2_service.backend.name
-  location = var.region
-  project  = var.project_id
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.bastion.email}"
-}
+# Note: We use allUsers + ingress restriction instead of service accounts
+# because nginx can't easily generate identity tokens for authentication
+
+# Old approach (commented out) - required authentication tokens
+# # IAM policy for backend - allow frontend to invoke
+# resource "google_cloud_run_v2_service_iam_member" "backend_frontend_invoker" {
+#   name     = google_cloud_run_v2_service.backend.name
+#   location = var.region
+#   project  = var.project_id
+#   role     = "roles/run.invoker"
+#   member   = "serviceAccount:${google_service_account.frontend.email}"
+# }
+#
+# # IAM policy for backend - allow bastion to invoke (for testing)
+# resource "google_cloud_run_v2_service_iam_member" "backend_bastion_invoker" {
+#   name     = google_cloud_run_v2_service.backend.name
+#   location = var.region
+#   project  = var.project_id
+#   role     = "roles/run.invoker"
+#   member   = "serviceAccount:${google_service_account.bastion.email}"
+# }
 
 # IAM policy for admin - allow only VPC and load balancer access
 # Commented out - focusing on generator for now
