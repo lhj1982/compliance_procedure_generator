@@ -71,7 +71,7 @@ resource "google_compute_router" "router" {
   project = var.project_id
 }
 
-# Cloud NAT for private subnet internet access
+# Cloud NAT for private subnet and bastion internet access
 resource "google_compute_router_nat" "nat" {
   name                               = "${var.app_name}-nat-${var.environment}"
   router                             = google_compute_router.router.name
@@ -80,8 +80,15 @@ resource "google_compute_router_nat" "nat" {
   source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
   project                            = var.project_id
 
+  # Private subnet - for Cloud SQL and other private resources
   subnetwork {
     name                    = google_compute_subnetwork.private.id
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  # Public subnet - for bastion to access internet (Cloud Run, etc.)
+  subnetwork {
+    name                    = google_compute_subnetwork.public.id
     source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
   }
 }

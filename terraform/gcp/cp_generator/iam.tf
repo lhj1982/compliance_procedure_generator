@@ -9,6 +9,7 @@ resource "google_service_account" "backend" {
 
 # Grant backend service account access to Secret Manager
 resource "google_secret_manager_secret_iam_member" "backend_secret_access" {
+  project   = var.project_id
   secret_id = var.app_secrets_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.backend.email}"
@@ -22,8 +23,9 @@ resource "google_storage_bucket_iam_member" "backend_storage_access" {
 }
 
 # Service account for frontend service (already exists in cloud_run.tf)
-# Grant frontend service account access to invoke backend
+# Grant frontend service account access to secrets (if needed in future)
 resource "google_secret_manager_secret_iam_member" "frontend_secret_access" {
+  project   = var.project_id
   secret_id = var.app_secrets_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.frontend.email}"
