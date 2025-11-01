@@ -7,9 +7,9 @@ set -e
 # Example: ./scripts/build_and_push.sh my-project us-central1 latest compliance-procedure
 
 PROJECT_ID=${1:-$(gcloud config get-value project)}
-REGION=${2:-us-central1}
+REGION=${2:-europe-north1}
 TAG=${3:-latest}
-APP_NAME=${4:-compliance-procedure}
+APP_NAME=${4:-cp}
 
 if [ -z "$PROJECT_ID" ]; then
     echo "Error: GCP project ID not provided and not set in gcloud config"
@@ -42,7 +42,7 @@ echo ""
 echo "=============================================="
 echo "Building generator backend image..."
 echo "=============================================="
-cd "$BASE_DIR/compliance_procedure_generator/backend"
+cd "$BASE_DIR/backend"
 BACKEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${APP_NAME}-gen-backend/backend:${TAG}"
 docker buildx build --platform linux/amd64 -f Dockerfile.gcp -t "$BACKEND_IMAGE" .
 echo "Pushing generator backend image..."
@@ -53,7 +53,7 @@ echo ""
 echo "=============================================="
 echo "Building generator frontend image..."
 echo "=============================================="
-cd "$BASE_DIR/compliance_procedure_generator/frontend"
+cd "$BASE_DIR/frontend"
 FRONTEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${APP_NAME}-gen-frontend/frontend:${TAG}"
 docker buildx build --platform linux/amd64 -f Dockerfile.gcp -t "$FRONTEND_IMAGE" .
 echo "Pushing generator frontend image..."

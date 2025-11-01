@@ -61,7 +61,7 @@ resource "google_compute_instance" "bastion" {
     # Use preemptible for dev to save costs (will be terminated within 24h)
     preemptible         = var.environment != "prod"
     automatic_restart   = var.environment == "prod"
-    on_host_maintenance = "MIGRATE"
+    # on_host_maintenance = "MIGRATE"
   }
 }
 

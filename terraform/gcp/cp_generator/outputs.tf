@@ -13,11 +13,6 @@ output "backend_url" {
   value       = google_cloud_run_v2_service.backend.uri
 }
 
-output "admin_url" {
-  description = "Cloud Run admin service URL"
-  value       = google_cloud_run_v2_service.admin.uri
-}
-
 output "bastion_instance_name" {
   description = "Bastion host instance name"
   value       = google_compute_instance.bastion.name

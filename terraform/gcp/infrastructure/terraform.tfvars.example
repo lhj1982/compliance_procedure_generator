@@ -17,3 +17,8 @@ db_password = "your-secure-database-password"
 
 # Network Configuration
 vpc_cidr = "10.0.0.0/16"
+
+service_account_email = "cloud-run-sa@virtex-test-462007.iam.gserviceaccount.com"
+
+# LLM API Configuration
+llm_api_key = ""

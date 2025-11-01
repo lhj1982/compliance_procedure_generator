@@ -8,21 +8,6 @@ resource "google_artifact_registry_repository" "gen_backend" {
   format        = "DOCKER"
   project       = var.project_id
 
-  cleanup_policy_dry_run = false
-  cleanup_policies {
-    id     = "keep-last-5-images"
-    action = "DELETE"
-    condition {
-      tag_state    = "ANY"
-      older_than   = "0s"
-      newer_than   = "0s"
-      package_name_prefixes = []
-    }
-    most_recent_versions {
-      keep_count = 5
-    }
-  }
-
   labels = {
     name        = "${var.app_name}-gen-backend"
     environment = var.environment
@@ -36,21 +21,6 @@ resource "google_artifact_registry_repository" "gen_frontend" {
   description   = "Docker repository for compliance procedure generator frontend"
   format        = "DOCKER"
   project       = var.project_id
-
-  cleanup_policy_dry_run = false
-  cleanup_policies {
-    id     = "keep-last-5-images"
-    action = "DELETE"
-    condition {
-      tag_state    = "ANY"
-      older_than   = "0s"
-      newer_than   = "0s"
-      package_name_prefixes = []
-    }
-    most_recent_versions {
-      keep_count = 5
-    }
-  }
 
   labels = {
     name        = "${var.app_name}-gen-frontend"
@@ -66,21 +36,6 @@ resource "google_artifact_registry_repository" "admin_backend" {
   format        = "DOCKER"
   project       = var.project_id
 
-  cleanup_policy_dry_run = false
-  cleanup_policies {
-    id     = "keep-last-5-images"
-    action = "DELETE"
-    condition {
-      tag_state    = "ANY"
-      older_than   = "0s"
-      newer_than   = "0s"
-      package_name_prefixes = []
-    }
-    most_recent_versions {
-      keep_count = 5
-    }
-  }
-
   labels = {
     name        = "${var.app_name}-admin-backend"
     environment = var.environment
@@ -94,21 +49,6 @@ resource "google_artifact_registry_repository" "admin_frontend" {
   description   = "Docker repository for compliance procedure admin frontend"
   format        = "DOCKER"
   project       = var.project_id
-
-  cleanup_policy_dry_run = false
-  cleanup_policies {
-    id     = "keep-last-5-images"
-    action = "DELETE"
-    condition {
-      tag_state    = "ANY"
-      older_than   = "0s"
-      newer_than   = "0s"
-      package_name_prefixes = []
-    }
-    most_recent_versions {
-      keep_count = 5
-    }
-  }
 
   labels = {
     name        = "${var.app_name}-admin-frontend"

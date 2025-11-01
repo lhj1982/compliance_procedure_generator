@@ -57,3 +57,8 @@ variable "llm_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "service_account_email" {
+  description = "Email of the Cloud Run service account"
+  type        = string
+}

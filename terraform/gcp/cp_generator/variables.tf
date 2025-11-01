@@ -67,11 +67,16 @@ variable "admin_image" {
   default     = "gcr.io/PROJECT_ID/compliance-admin:latest"
 }
 
-variable "llm_api_key" {
-  description = "LLM API key for backend"
+variable "llm_base_url" {
+  description = "LLM Base URL"
   type        = string
-  sensitive   = true
+  default     = "https://api.openai.com/v1"
 }
+#variable "llm_api_key" {
+#  description = "LLM API key for backend"
+#  type        = string
+#  sensitive   = true
+#}
 
 variable "bastion_allowed_ips" {
   description = "List of IP addresses allowed to access bastion"

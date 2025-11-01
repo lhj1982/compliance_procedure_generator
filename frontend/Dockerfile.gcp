@@ -4,43 +4,23 @@ FROM nginx:alpine
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config template
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Create templates directory
+RUN mkdir -p /etc/nginx/templates
 
-# Copy frontend files to nginx html directory
+# Copy frontend files
 COPY index.html /usr/share/nginx/html/
 COPY static /usr/share/nginx/html/static/
 
-# Create startup script to inject environment variables
-RUN cat > /docker-entrypoint.sh << 'EOF'
-#!/bin/sh
-set -e
-
-# Set default for local dev if not provided
-if [ -z "$BACKEND_URL" ]; then
-    export BACKEND_URL="http://backend:9090"
-    echo "Using default BACKEND_URL: $BACKEND_URL"
-fi
-
-# Substitute BACKEND_URL in nginx config
-envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
-
-echo "Nginx configured to proxy /api/* to: $BACKEND_URL"
-
-# Start nginx
-exec nginx -g 'daemon off;'
-EOF
-
-RUN chmod +x /docker-entrypoint.sh
-
-# Expose port (Cloud Run will use PORT env variable, default to 8080)
-EXPOSE 8080
-
-# Update nginx config to listen on PORT from environment
+# Create nginx config template with fixed port
 RUN cat > /etc/nginx/templates/default.conf.template << 'EOF'
 server {
-    listen ${PORT:-8080};
+    # Fixed port for frontend
+    listen 8082;
     server_name _;
+
+    # Enable error logging for debugging
+    error_log /dev/stderr debug;
+    access_log /dev/stdout combined;
 
     # Serve static files
     location / {
@@ -51,8 +31,7 @@ server {
 
     # Proxy API requests to backend
     location /api/ {
-        # Use GCP Cloud Run internal DNS
-        resolver 8.8.8.8 valid=10s ipv6=off;
+        resolver 169.254.169.254;
 
         set $backend_url ${BACKEND_URL};
         proxy_pass $backend_url;
@@ -68,7 +47,7 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # Health check endpoint for Cloud Run
+    # Health check endpoint
     location /health {
         access_log off;
         return 200 "healthy\n";
@@ -77,13 +56,10 @@ server {
 }
 EOF
 
-# Update entrypoint to handle PORT variable
+# Create entrypoint script
 RUN cat > /docker-entrypoint.sh << 'EOF'
 #!/bin/sh
 set -e
-
-# Cloud Run sets PORT environment variable
-export PORT=${PORT:-8080}
 
 # Set default backend URL if not provided
 if [ -z "$BACKEND_URL" ]; then
@@ -91,10 +67,10 @@ if [ -z "$BACKEND_URL" ]; then
     echo "Using default BACKEND_URL: $BACKEND_URL"
 fi
 
-# Substitute variables in nginx config
-envsubst '${BACKEND_URL} ${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
+# Only substitute BACKEND_URL in nginx config
+envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
 
-echo "Nginx listening on port: $PORT"
+echo "Nginx listening on port: 8082"
 echo "Nginx configured to proxy /api/* to: $BACKEND_URL"
 
 # Start nginx
@@ -103,5 +79,8 @@ EOF
 
 RUN chmod +x /docker-entrypoint.sh
 
-# Run nginx with environment variable substitution
+# Fixed port for Cloud Run
+EXPOSE 8082
+
+# Run nginx
 CMD ["/docker-entrypoint.sh"]

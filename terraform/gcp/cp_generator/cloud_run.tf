@@ -34,6 +34,11 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.db_user
       }
 
+      env {
+        name = "LLM_BASE_URL"
+        value = var.llm_base_url
+      }
+
       # Application secrets as JSON from Secret Manager
       # The secret contains: {"llm_api_key": "value", "db_password": "value"}
       # Backend should parse this JSON to extract individual values
@@ -101,7 +106,7 @@ resource "google_cloud_run_v2_service" "frontend" {
       image = var.frontend_image
 
       ports {
-        container_port = 8080
+        container_port = 8082
       }
 
       env {

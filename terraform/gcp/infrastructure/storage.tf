@@ -1,4 +1,4 @@
-# Cloud Storage bucket for generated documents (GCP equivalent of AWS S3)
+# Cloud Storage bucket for generated documents
 
 data "google_project" "current" {
   project_id = var.project_id
@@ -12,6 +12,7 @@ resource "google_storage_bucket" "documents" {
 
   # Prevent public access
   uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
 
   # Versioning for document history
   versioning {
@@ -37,16 +38,9 @@ resource "google_storage_bucket" "documents" {
   }
 }
 
-# IAM policy to prevent public access
-resource "google_storage_bucket_iam_member" "documents_private" {
+# Grant access to Cloud Run service account
+resource "google_storage_bucket_iam_member" "service_account_access" {
   bucket = google_storage_bucket.documents.name
   role   = "roles/storage.objectViewer"
-  member = "allUsers"
-
-  # This is intentionally set to deny public access
-  condition {
-    title       = "never"
-    description = "Deny all public access"
-    expression  = "false"
-  }
+  member = "serviceAccount:${var.service_account_email}"
 }

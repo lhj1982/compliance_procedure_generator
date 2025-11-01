@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import logging
 import sys
 from storage_handler import StorageHandler
+import json
 
 load_dotenv()
 
@@ -22,23 +23,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load API key and base URL from environment variables
-API_KEY = os.getenv("LLM_API_KEY")
-BASE_URL = os.getenv("LLM_BASE_URL")
+def get_secrets():
+    """Get secrets from either GCP App Secrets or environment variables"""
+    # Try to get APP_SECRETS first (GCP)
+    app_secrets_json = os.getenv('APP_SECRETS')
+    if app_secrets_json:
+        try:
+            app_secrets = json.loads(app_secrets_json)
+            return {
+                'LLM_API_KEY': app_secrets.get('llm_api_key'),
+                'DB_PASSWORD': app_secrets.get('db_password')
+            }
+        except json.JSONDecodeError:
+            print("Warning: Failed to parse APP_SECRETS JSON")
 
-# Database configuration
+    # Fallback to individual environment variables (AWS ECS or local)
+    return {
+        'LLM_API_KEY': os.getenv('LLM_API_KEY'),
+        'DB_PASSWORD': os.getenv('DB_PASSWORD')
+    }
+
+# Get secrets based on environment
+secrets = get_secrets()
+
+# Configure database connection
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'database': os.getenv('DB_NAME', 'compliance_admin'),
     'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', 'password'),
+    'password': secrets['DB_PASSWORD'],
     'port': os.getenv('DB_PORT', '5432'),
     'sslmode': os.getenv('DB_SSL_MODE', 'prefer')
 }
 
+# Configure OpenAI client
 client = OpenAI(
-    api_key=API_KEY,
-    base_url=BASE_URL
+    api_key=secrets['LLM_API_KEY'],
+    base_url=os.getenv("LLM_BASE_URL")
 )
 
 app = Flask(__name__)
