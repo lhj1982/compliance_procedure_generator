@@ -14,8 +14,8 @@ This guide covers deploying the compliance procedure generator to GCP Cloud Run 
 ## Architecture Summary
 
 - **Frontend**: Public Cloud Run service serving static HTML/CSS/JS files
-- **Backend**: Internal-only Cloud Run service (accessible from `*.run.app` domains only)
-- **Security**: CORS restricts backend to GCP Cloud Run origins only
+- **Backend**: Public Cloud Run service with CORS protection (only accepts requests from `*.run.app` origins)
+- **Security**: CORS restricts backend API calls to browser requests from Cloud Run frontend only
 
 ## Step-by-Step Deployment
 
@@ -201,14 +201,16 @@ fetch('https://cp-backend-dev-123456.europe-north1.run.app/api/teams')
 
 This should work because the request comes from a `*.run.app` origin.
 
-### 3. Check Backend is NOT Publicly Accessible
+### 3. Check Backend CORS Protection
 
-Try accessing the backend from outside GCP (e.g., your local machine):
+Try accessing the backend API directly (not from browser):
 
 ```bash
 curl https://cp-backend-dev-123456.europe-north1.run.app/api/teams
-# Should fail or return error (ingress restriction)
+# Should return CORS error or be blocked because no valid Origin header
 ```
+
+The backend is publicly addressable but CORS will block requests that don't come from `*.run.app` origins.
 
 ### 4. Check Logs
 
@@ -291,15 +293,16 @@ docker run --rm YOUR_FRONTEND_IMAGE cat /usr/share/nginx/html/static/config.js
 
 **Fix**: Update config.js and rebuild frontend image (Steps 7-8)
 
-### Backend returns 403 or ingress error
+### Backend returns 403 or CORS error
 
-**Symptom**: Requests from browser to backend fail with 403
+**Symptom**: Requests from browser to backend fail with CORS error
 
 **Check**:
-- Backend ingress setting: Should be `INGRESS_TRAFFIC_INTERNAL_ONLY`
-- CORS configuration in backend server.py
+- Backend ingress setting: Should be `INGRESS_TRAFFIC_ALL`
+- CORS configuration in backend server.py: Should allow `*.run.app` origins
+- Frontend is actually hosted on a `*.run.app` domain
 
-**Fix**: Verify backend deployment and CORS config
+**Fix**: Verify backend deployment has correct ingress and CORS config
 
 ### First terraform apply fails
 
@@ -338,13 +341,16 @@ Estimated monthly cost: **$17-38** for development environment.
 
 ## Security Notes
 
-1. **Backend is NOT publicly accessible**
-   - Ingress restriction blocks public internet
-   - Only GCP Cloud Run services can access it
+1. **Backend is publicly addressable but CORS-protected**
+   - Backend has a public HTTPS URL (required for browser requests)
+   - CORS only allows requests from `*.run.app` origins
+   - This effectively restricts API access to Cloud Run frontend only
 
 2. **CORS protection**
-   - Backend only accepts requests from `*.run.app` origins
+   - Backend validates the `Origin` header on all requests
+   - Only `https://*.run.app` origins are accepted
    - Prevents unauthorized domains from calling the API
+   - Browser enforces CORS - requests from other domains will fail
 
 3. **Secret management**
    - All secrets in Secret Manager

@@ -1,12 +1,17 @@
-# Backend Service (Internal GCP only - accessible from Cloud Run frontend and bastion)
+# ============================================================================
+# Cloud Run Services
+# ============================================================================
+
+# Backend Service - API endpoints for compliance procedure generation
 resource "google_cloud_run_v2_service" "backend" {
   name     = "${var.app_name}-backend-${var.environment}"
   location = var.region
   project  = var.project_id
 
-  # Allow only internal GCP traffic (other Cloud Run services, Cloud Functions, etc.)
-  # This is more permissive than INTERNAL_LOAD_BALANCER but still blocks public internet
-  ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  # Allow all traffic - security is enforced via CORS in application code
+  # CORS restricts to *.run.app origins only (see backend/server.py)
+  # Note: INGRESS_TRAFFIC_INTERNAL_ONLY blocks browser requests
+  ingress = "INGRESS_TRAFFIC_ALL"
 
   # Ensure IAM roles are set before deploying backend
   depends_on = [
@@ -24,6 +29,7 @@ resource "google_cloud_run_v2_service" "backend" {
         container_port = 9090
       }
 
+      # Database configuration
       env {
         name  = "DB_HOST"
         value = var.db_private_ip
@@ -44,14 +50,14 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.db_user
       }
 
+      # LLM configuration
       env {
-        name = "LLM_BASE_URL"
+        name  = "LLM_BASE_URL"
         value = var.llm_base_url
       }
 
-      # Application secrets as JSON from Secret Manager
-      # The secret contains: {"llm_api_key": "value", "db_password": "value"}
-      # Backend should parse this JSON to extract individual values
+      # Application secrets from Secret Manager
+      # JSON format: {"llm_api_key": "value", "db_password": "value"}
       env {
         name = "APP_SECRETS"
         value_source {
@@ -62,11 +68,13 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
 
+      # Storage configuration
       env {
         name  = "DOCUMENTS_BUCKET"
         value = var.documents_bucket_name
       }
 
+      # Application configuration
       env {
         name  = "NODE_ENV"
         value = var.environment
@@ -103,7 +111,7 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 }
 
-# Frontend Service (Public - serves static files, calls backend API directly from browser)
+# Frontend Service - Static file server (nginx)
 resource "google_cloud_run_v2_service" "frontend" {
   name     = "${var.app_name}-frontend-${var.environment}"
   location = var.region
@@ -119,8 +127,8 @@ resource "google_cloud_run_v2_service" "frontend" {
         container_port = 8082
       }
 
-      # No environment variables needed - frontend is just static files
-      # Backend URL will be embedded in the JavaScript at build time or passed via window config
+      # No environment variables needed
+      # Backend URL is configured in static/config.js at build time
 
       resources {
         limits = {
@@ -136,8 +144,7 @@ resource "google_cloud_run_v2_service" "frontend" {
       max_instance_count = var.environment == "prod" ? 10 : 5
     }
 
-    # Frontend doesn't need VPC access anymore since it's just serving static files
-    # Browser will call backend API directly
+    # No VPC access needed - frontend just serves static files
   }
 
   traffic {
@@ -146,90 +153,12 @@ resource "google_cloud_run_v2_service" "frontend" {
   }
 }
 
-# Admin Service (Private - only accessible via VPC)
-# Commented out - focusing on generator for now
-# resource "google_cloud_run_v2_service" "admin" {
-#   name     = "${var.app_name}-admin-${var.environment}"
-#   location = var.region
-#   project  = var.project_id
-#
-#   template {
-#     containers {
-#       image = var.admin_image
-#
-#       ports {
-#         container_port = 8081
-#       }
-#
-#       env {
-#         name  = "DB_HOST"
-#         value = var.db_private_ip
-#       }
-#
-#       env {
-#         name  = "DB_PORT"
-#         value = "5432"
-#       }
-#
-#       env {
-#         name  = "DB_NAME"
-#         value = var.db_name
-#       }
-#
-#       env {
-#         name  = "DB_USER"
-#         value = var.db_user
-#       }
-#
-#       env {
-#         name = "DB_PASSWORD"
-#         value_source {
-#           secret_key_ref {
-#             secret  = var.db_password_secret_id
-#             version = "latest"
-#           }
-#         }
-#       }
-#
-#       env {
-#         name  = "DOCUMENTS_BUCKET"
-#         value = var.documents_bucket_name
-#       }
-#
-#       env {
-#         name  = "NODE_ENV"
-#         value = var.environment
-#       }
-#
-#       resources {
-#         limits = {
-#           cpu    = "1"
-#           memory = "512Mi"
-#         }
-#         cpu_idle = true
-#       }
-#     }
-#
-#     scaling {
-#       min_instance_count = var.environment == "prod" ? 1 : 0
-#       max_instance_count = var.environment == "prod" ? 5 : 2
-#     }
-#
-#     vpc_access {
-#       connector = var.vpc_connector_id
-#       egress    = "PRIVATE_RANGES_ONLY"
-#     }
-#   }
-#
-#   traffic {
-#     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
-#     percent = 100
-#   }
-# }
+# ============================================================================
+# Cloud Run IAM Policies
+# ============================================================================
 
-# IAM policy for backend - allow anyone within VPC (ingress controls access)
-# The backend has ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" which limits to VPC only
-resource "google_cloud_run_v2_service_iam_member" "backend_all_users" {
+# Backend - allow public access (CORS enforces security)
+resource "google_cloud_run_v2_service_iam_member" "backend_public" {
   name     = google_cloud_run_v2_service.backend.name
   location = var.region
   project  = var.project_id
@@ -237,50 +166,11 @@ resource "google_cloud_run_v2_service_iam_member" "backend_all_users" {
   member   = "allUsers"
 }
 
-# Note: We use allUsers + ingress restriction instead of service accounts
-# because nginx can't easily generate identity tokens for authentication
-
-# Old approach (commented out) - required authentication tokens
-# # IAM policy for backend - allow frontend to invoke
-# resource "google_cloud_run_v2_service_iam_member" "backend_frontend_invoker" {
-#   name     = google_cloud_run_v2_service.backend.name
-#   location = var.region
-#   project  = var.project_id
-#   role     = "roles/run.invoker"
-#   member   = "serviceAccount:${google_service_account.frontend.email}"
-# }
-#
-# # IAM policy for backend - allow bastion to invoke (for testing)
-# resource "google_cloud_run_v2_service_iam_member" "backend_bastion_invoker" {
-#   name     = google_cloud_run_v2_service.backend.name
-#   location = var.region
-#   project  = var.project_id
-#   role     = "roles/run.invoker"
-#   member   = "serviceAccount:${google_service_account.bastion.email}"
-# }
-
-# IAM policy for admin - allow only VPC and load balancer access
-# Commented out - focusing on generator for now
-# resource "google_cloud_run_v2_service_iam_member" "admin_invoker" {
-#   name   = google_cloud_run_v2_service.admin.name
-#   location = var.region
-#   project  = var.project_id
-#   role     = "roles/run.invoker"
-#   member   = "serviceAccount:${google_service_account.frontend.email}"
-# }
-
-# IAM policy for frontend - allow public access (via load balancer)
+# Frontend - allow public access
 resource "google_cloud_run_v2_service_iam_member" "frontend_public" {
-  name   = google_cloud_run_v2_service.frontend.name
+  name     = google_cloud_run_v2_service.frontend.name
   location = var.region
   project  = var.project_id
   role     = "roles/run.invoker"
   member   = "allUsers"
-}
-
-# Service account for frontend to invoke backend services
-resource "google_service_account" "frontend" {
-  account_id   = "${var.app_name}-frontend-${var.environment}"
-  display_name = "Compliance Frontend Service Account"
-  project      = var.project_id
 }

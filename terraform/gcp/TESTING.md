@@ -1,368 +1,489 @@
-# Testing Guide
+# Testing Guide - GCP Cloud Run Deployment
 
 ## Overview
 
-This guide explains how to test the backend API from the bastion server.
+This guide explains how to test the compliance procedure generator deployed on GCP Cloud Run.
 
-## Why Bastion Can Access Backend
+## Architecture Recap
 
-The bastion service account has been granted `roles/run.invoker` permission on the backend Cloud Run service. This allows you to:
-- Test backend API endpoints
-- Debug issues
-- Verify backend functionality
-- Check backend health
+- **Frontend**: Public Cloud Run service serving static files
+  - Accessible from any browser
+  - Calls backend API directly via JavaScript
 
-## Prerequisites
+- **Backend**: Public Cloud Run service with CORS protection
+  - Publicly addressable but CORS-protected
+  - Only accepts requests from `*.run.app` origins
+  - Browser requests work because they come from frontend Cloud Run domain
 
-1. Terraform has been applied successfully
-2. Backend Cloud Run service is deployed
-3. You have access to the GCP project
+- **Database**: Private Cloud SQL instance
+  - Only accessible via VPC or bastion
 
-## Quick Test
+## Testing the Application
 
-### 1. Get the SSH Command
-
-```bash
-# From your local machine
-cd terraform/gcp
-terraform output bastion_ssh_command
-```
-
-Copy and run the command shown.
-
-### 2. SSH to Bastion
-
-```bash
-# Example output from above
-gcloud compute ssh cp-bastion-dev --zone=europe-north1-a --tunnel-through-iap
-```
-
-### 3. Test Backend
-
-Once on the bastion, run:
-
-```bash
-# Get backend test command
-terraform output test_backend_command
-
-# Or manually:
-TOKEN=$(gcloud auth print-identity-token)
-BACKEND_URL="https://cp-backend-dev-xxxxxxxxxxxx-uc.a.run.app"
-
-# Test health endpoint
-curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/health
-```
-
-## Detailed Testing
-
-### Get Backend URL
+### 1. Get Application URLs
 
 From your local machine:
+
 ```bash
-cd terraform/gcp
+cd terraform/gcp/cp_generator
+terraform output frontend_url
 terraform output backend_url
 ```
 
-Example output: `https://cp-backend-dev-xxxxx-uc.a.run.app`
+Example outputs:
+- Frontend: `https://cp-frontend-dev-123456.europe-north1.run.app`
+- Backend: `https://cp-backend-dev-123456.europe-north1.run.app`
 
-### SSH to Bastion
+### 2. Test Frontend
+
+Simply open the frontend URL in your browser:
 
 ```bash
+# macOS
+open $(terraform output -raw frontend_url)
+
+# Linux
+xdg-open $(terraform output -raw frontend_url)
+
+# Or manually visit
+# https://cp-frontend-dev-123456.europe-north1.run.app
+```
+
+**Expected behavior**:
+- Application loads
+- Team dropdown is populated
+- You can select a team and see questions
+- Browser console shows: `Using BACKEND_URL from APP_CONFIG: https://cp-backend-dev-xxx...`
+
+### 3. Test Frontend Static Files
+
+Check that nginx is serving files correctly:
+
+```bash
+FRONTEND_URL=$(terraform output -raw frontend_url)
+
+# Health check
+curl $FRONTEND_URL/health
+# Expected: healthy
+
+# Check static files
+curl $FRONTEND_URL/static/app.js | head -20
+curl $FRONTEND_URL/static/config.js
+```
+
+### 4. Test Backend CORS Protection
+
+**From browser (should work)**:
+
+Open browser console on the frontend page and run:
+
+```javascript
+fetch('https://cp-backend-dev-xxx.europe-north1.run.app/api/teams')
+  .then(r => r.json())
+  .then(d => console.log(d))
+```
+
+This should work because the request comes from a `*.run.app` origin.
+
+**From curl/terminal (may work differently)**:
+
+```bash
+BACKEND_URL=$(terraform output -raw backend_url)
+
+# Without Origin header - backend allows this
+curl $BACKEND_URL/
+
+# The backend is publicly addressable but CORS-protected
+# Browser enforces CORS - curl doesn't have the same restrictions
+curl $BACKEND_URL/api/teams
+```
+
+**Note**: CORS is enforced by browsers, not by curl. The backend is technically publicly accessible, but browsers will block requests from non-Cloud Run origins.
+
+### 5. Test Backend API Endpoints
+
+```bash
+BACKEND_URL=$(terraform output -raw backend_url)
+
+# Health check
+curl $BACKEND_URL/
+# Expected: {"status": "healthy", "service": "compliance-procedure-generator-api"}
+
+# Get teams
+curl $BACKEND_URL/api/teams
+# Expected: [{"id": 1, "name": "Engineering"}, ...]
+
+# Get questions for a team
+curl $BACKEND_URL/api/teams/1/questions
+# Expected: {"team_id": 1, "team_name": "...", "questions": [...]}
+```
+
+### 6. Test End-to-End Workflow
+
+1. **Open frontend in browser**
+2. **Select a team** from dropdown
+3. **Fill in answers** to compliance questions
+4. **Submit form**
+5. **Download generated document**
+
+**Check browser console for**:
+- API base URL configuration
+- API request/response logs
+- Any CORS errors (there shouldn't be any)
+
+**Check backend logs**:
+```bash
+gcloud run services logs read cp-backend-dev --region=europe-north1 --limit=50
+```
+
+## Testing from Bastion Server
+
+The bastion can also be used for testing, especially for database-related operations.
+
+### 1. SSH to Bastion
+
+```bash
+# Get SSH command
+terraform output bastion_ssh_command
+
+# Or manually
 gcloud compute ssh cp-bastion-dev \
   --zone=europe-north1-a \
   --tunnel-through-iap \
   --project=YOUR_PROJECT_ID
 ```
 
-### Test Backend Endpoints
+### 2. Test Backend from Bastion
 
-Once connected to bastion:
-
-#### 1. Test Health Endpoint
+Once on the bastion:
 
 ```bash
-TOKEN=$(gcloud auth print-identity-token)
-BACKEND_URL="https://cp-backend-dev-xxxxx-uc.a.run.app"
+BACKEND_URL="https://cp-backend-dev-xxx.europe-north1.run.app"
 
-curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/health
+# Test health endpoint
+curl $BACKEND_URL/
+
+# Test API endpoints
+curl $BACKEND_URL/api/teams
 ```
 
-Expected response:
-```json
-{"status": "healthy"}
-```
+**Note**: Since the backend is public (with CORS protection), the bastion can access it without authentication tokens.
 
-#### 2. Test API Endpoints
+### 3. Test Database Connection from Bastion
 
 ```bash
-# GET request
-curl -H "Authorization: Bearer $TOKEN" \
-     $BACKEND_URL/api/questions
+# Start Cloud SQL proxy on bastion
+cloud_sql_proxy -instances=PROJECT:REGION:INSTANCE=tcp:5432 &
 
-# POST request
-curl -X POST \
-     -H "Authorization: Bearer $TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"question":"What is the procedure for...?"}' \
-     $BACKEND_URL/api/generate
+# Connect to database
+psql -h localhost -U compliance_user -d compliance_db
+
+# Test queries
+SELECT * FROM teams;
+SELECT * FROM teams_compliance_procedures;
 ```
 
-#### 3. Check Environment Variables (Debug)
+## Viewing Logs
+
+### Frontend Logs
 
 ```bash
-# If your backend has a debug endpoint
-curl -H "Authorization: Bearer $TOKEN" \
-     $BACKEND_URL/api/debug/env
+# Tail logs in real-time
+gcloud run services logs tail cp-frontend-dev --region=europe-north1
+
+# Read recent logs
+gcloud run services logs read cp-frontend-dev --region=europe-north1 --limit=50
+
+# Filter for errors
+gcloud run services logs read cp-frontend-dev \
+  --region=europe-north1 \
+  --limit=100 \
+  | grep -i error
 ```
 
-#### 4. Test Database Connection
+### Backend Logs
 
 ```bash
-# If your backend has a database health check
-curl -H "Authorization: Bearer $TOKEN" \
-     $BACKEND_URL/api/health/database
+# Tail logs in real-time
+gcloud run services logs tail cp-backend-dev --region=europe-north1
+
+# Read recent logs
+gcloud run services logs read cp-backend-dev --region=europe-north1 --limit=50
+
+# Filter by severity
+gcloud run services logs read cp-backend-dev \
+  --region=europe-north1 \
+  --limit=100 \
+  --log-filter="severity>=ERROR"
 ```
 
-## Testing Without Authentication (Will Fail)
-
-To verify that backend is properly secured, try accessing without auth:
+### Database Logs
 
 ```bash
-# This should fail with 403 Forbidden
-curl https://cp-backend-dev-xxxxx-uc.a.run.app/health
+# List recent operations
+gcloud sql operations list --instance=cp-db-dev --limit=20
+
+# Get specific operation details
+gcloud sql operations describe OPERATION_ID
 ```
 
-Expected response:
-```
-<html><head>
-<meta http-equiv="content-type" content="text/html;charset=utf-8">
-<title>403 Forbidden</title>
-</head>
-<body text=#000000 bgcolor=#ffffff>
-<h1>Error: Forbidden</h1>
-<h2>Your client does not have permission to get URL...</h2>
-</body></html>
+### Secret Access Logs
+
+```bash
+# See which services accessed secrets
+gcloud logging read "resource.type=secretmanager.googleapis.com/Secret" \
+  --limit=50 \
+  --format=json
 ```
 
-This confirms that the backend is properly secured and requires authentication.
+## Testing Different Scenarios
+
+### Test CORS Protection
+
+**Expected to work** (request from Cloud Run origin):
+```javascript
+// Run in browser console on frontend page
+fetch('https://cp-backend-dev-xxx.run.app/api/teams')
+  .then(r => r.json())
+  .then(d => console.log('Success:', d))
+  .catch(e => console.error('Error:', e))
+```
+
+**Expected to fail** (request from non-Cloud Run origin):
+
+1. Open a different website (e.g., google.com)
+2. Open browser console
+3. Run:
+```javascript
+fetch('https://cp-backend-dev-xxx.run.app/api/teams')
+  .then(r => r.json())
+  .then(d => console.log('Success:', d))
+  .catch(e => console.error('CORS Error:', e))
+```
+
+You should see a CORS error because the origin is not `*.run.app`.
+
+### Test Database Connection
+
+```bash
+# From bastion, test connection
+BACKEND_URL="https://cp-backend-dev-xxx.run.app"
+
+# This should return data from database
+curl $BACKEND_URL/api/teams
+```
+
+If this works, the backend can connect to the database via VPC.
+
+### Test Cloud Storage Access
+
+```bash
+# Submit a compliance form via frontend
+# Then check if document was uploaded to Cloud Storage
+
+gcloud storage ls gs://cp-documents-dev-*/
+```
+
+### Test Secret Manager Access
+
+Check backend logs to verify it loaded secrets:
+
+```bash
+gcloud run services logs read cp-backend-dev \
+  --region=europe-north1 \
+  --limit=100 \
+  | grep -i "secret\|api.*key\|database"
+```
 
 ## Troubleshooting
 
-### Error: "Your client does not have permission"
+### Frontend can't load
 
-**Problem**: Getting 403 Forbidden even with token
+**Symptom**: Browser shows "Site can't be reached"
 
-**Solutions**:
-
-1. Verify bastion service account has permission:
-   ```bash
-   gcloud run services get-iam-policy cp-backend-dev \
-     --region=europe-north1 \
-     --project=YOUR_PROJECT_ID
-   ```
-
-   Should see:
-   ```yaml
-   - members:
-     - serviceAccount:cp-bastion-dev@PROJECT.iam.gserviceaccount.com
-     role: roles/run.invoker
-   ```
-
-2. Verify you're using bastion's service account:
-   ```bash
-   # On bastion
-   gcloud auth list
-   ```
-
-   Should show bastion service account as active.
-
-3. Refresh token:
-   ```bash
-   TOKEN=$(gcloud auth print-identity-token)
-   echo $TOKEN  # Should show a long JWT token
-   ```
-
-### Error: "Could not resolve host"
-
-**Problem**: DNS not working
-
-**Solution**:
+**Check**:
 ```bash
-# On bastion
-ping 8.8.8.8  # Test internet connectivity
-nslookup cp-backend-dev-xxxxx-uc.a.run.app  # Test DNS
+# Verify frontend is deployed
+gcloud run services describe cp-frontend-dev --region=europe-north1
+
+# Check recent deployments
+gcloud run revisions list --service=cp-frontend-dev --region=europe-north1
 ```
 
-### Error: "Connection refused"
+### Backend API returns 404
 
-**Problem**: Backend service is not running
+**Symptom**: API calls from frontend return 404
 
-**Solution**:
+**Check**:
+1. Verify backend URL in `frontend/static/config.js` is correct
+2. Check backend is deployed:
 ```bash
-# From local machine
+gcloud run services describe cp-backend-dev --region=europe-north1
+```
+3. Test backend directly:
+```bash
+curl $(terraform output -raw backend_url)/
+```
+
+### CORS errors in browser
+
+**Symptom**: Browser console shows CORS error
+
+**Check**:
+1. Verify backend CORS configuration allows `*.run.app`
+2. Check frontend is actually hosted on `*.run.app` domain
+3. View backend logs for CORS-related messages:
+```bash
+gcloud run services logs read cp-backend-dev --region=europe-north1 --limit=50
+```
+
+### Database connection failed
+
+**Symptom**: Backend logs show "Database connection error"
+
+**Check**:
+1. Verify VPC connector is attached to backend:
+```bash
 gcloud run services describe cp-backend-dev \
   --region=europe-north1 \
-  --project=YOUR_PROJECT_ID
-
-# Check if service is ready
-gcloud run services list --project=YOUR_PROJECT_ID
+  --format="value(spec.template.spec.vpcAccess.connector)"
 ```
 
-## Testing Workflow
-
-### Complete Testing Checklist
-
-1. **SSH to Bastion**
-   ```bash
-   gcloud compute ssh cp-bastion-dev --tunnel-through-iap --zone=europe-north1-a
-   ```
-
-2. **Get Auth Token**
-   ```bash
-   TOKEN=$(gcloud auth print-identity-token)
-   ```
-
-3. **Set Backend URL**
-   ```bash
-   BACKEND_URL="https://cp-backend-dev-xxxxx-uc.a.run.app"
-   ```
-
-4. **Test Health**
-   ```bash
-   curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/health
-   ```
-
-5. **Test API Endpoints**
-   ```bash
-   # List questions
-   curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/api/questions
-
-   # Generate procedure
-   curl -X POST \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d '{"answers":[...]}' \
-        $BACKEND_URL/api/generate
-   ```
-
-6. **Check Logs**
-   ```bash
-   # From local machine
-   gcloud run services logs read cp-backend-dev \
-     --region=europe-north1 \
-     --limit=50
-   ```
-
-## Advanced Testing
-
-### Using Variables for Cleaner Commands
-
-Create a test script on bastion:
-
+2. Test database from bastion:
 ```bash
-# On bastion, create ~/test-backend.sh
-cat > ~/test-backend.sh << 'EOF'
-#!/bin/bash
-
-# Get token
-TOKEN=$(gcloud auth print-identity-token)
-
-# Backend URL (update this)
-BACKEND_URL="https://cp-backend-dev-xxxxx-uc.a.run.app"
-
-# Test health
-echo "Testing health endpoint..."
-curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/health
-echo ""
-
-# Test API
-echo "Testing API endpoint..."
-curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/api/questions
-echo ""
-
-echo "Done!"
-EOF
-
-chmod +x ~/test-backend.sh
+# SSH to bastion first
+cloud_sql_proxy -instances=PROJECT:REGION:INSTANCE=tcp:5432 &
+psql -h localhost -U compliance_user -d compliance_db -c "SELECT 1"
 ```
 
-Then simply run:
+### Permission denied on secret
+
+**Symptom**: Backend logs show "permission denied on secret"
+
+**Check**:
 ```bash
-./test-backend.sh
+# Verify backend service account has access
+gcloud secrets get-iam-policy cp-secrets-dev
+
+# Should show backend service account with secretAccessor role
 ```
 
-### Testing with jq for Pretty JSON
-
+**Fix**:
 ```bash
-# Install jq on bastion
-sudo apt-get install -y jq
-
-# Use jq to format JSON responses
-TOKEN=$(gcloud auth print-identity-token)
-BACKEND_URL="https://cp-backend-dev-xxxxx-uc.a.run.app"
-
-curl -s -H "Authorization: Bearer $TOKEN" $BACKEND_URL/api/questions | jq .
+# Grant access manually if needed
+gcloud secrets add-iam-policy-binding cp-secrets-dev \
+  --member="serviceAccount:cp-backend-dev@PROJECT.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
 ```
 
-### Load Testing
+### Generated documents not saving
+
+**Symptom**: Document generation succeeds but download fails
+
+**Check**:
+```bash
+# List documents in bucket
+gcloud storage ls gs://cp-documents-dev-*/
+
+# Check backend service account has storage permissions
+gcloud storage buckets get-iam-policy gs://cp-documents-dev-*
+```
+
+## Performance Testing
+
+### Test Cold Start Time
 
 ```bash
-# Simple load test - 10 requests
+# Stop all instances (wait 15 minutes for scale to zero)
+# Then test response time
+time curl $(terraform output -raw frontend_url)/health
+time curl $(terraform output -raw backend_url)/
+```
+
+### Test Concurrent Requests
+
+```bash
+BACKEND_URL=$(terraform output -raw backend_url)
+
+# Send 10 concurrent requests
 for i in {1..10}; do
-  TOKEN=$(gcloud auth print-identity-token)
-  curl -H "Authorization: Bearer $TOKEN" \
-       $BACKEND_URL/health &
+  curl $BACKEND_URL/api/teams &
 done
 wait
-
-echo "Load test complete"
 ```
 
-## Security Notes
-
-### What Bastion Can Do
-
-✅ Invoke backend Cloud Run service (via IAM)
-✅ Access Cloud SQL database (via Cloud SQL proxy)
-✅ Read Cloud Run logs (if given permission)
-✅ Access Secret Manager (if given permission)
-
-### What Bastion Cannot Do
-
-❌ Access backend without authentication token
-❌ Access Secret Manager by default (needs explicit permission)
-❌ Access Cloud Storage by default (needs explicit permission)
-❌ Create or modify Cloud Run services
-
-### Best Practices
-
-1. **Use IAP Tunnel**: Never expose bastion with external IP
-2. **Rotate Tokens**: Tokens expire after 1 hour, get fresh ones for each session
-3. **Limit Bastion Access**: Only grant access to users who need it
-4. **Monitor Usage**: Check bastion logs regularly
-5. **Use Preemptible in Dev**: Saves costs and forces infrastructure-as-code discipline
-
-## Comparison: Frontend vs Bastion Access
-
-### Frontend Service Account
+### Monitor Resource Usage
 
 ```bash
-# Frontend calls backend WITHOUT Authorization header
-# Cloud Run automatically injects identity token when using service account
+# Check Cloud Run metrics in console
+gcloud run services describe cp-backend-dev \
+  --region=europe-north1 \
+  --format="value(status.conditions)"
 ```
 
-Frontend nginx proxies to backend like:
-```nginx
-proxy_pass $BACKEND_URL;
-# Cloud Run adds authentication automatically via service account
-```
+## Security Testing
 
-### Bastion Service Account
+### Verify Backend is Not Bypassing CORS
+
+Try to access backend from curl with a fake Origin header:
 
 ```bash
-# Bastion calls backend WITH Authorization header
-TOKEN=$(gcloud auth print-identity-token)
-curl -H "Authorization: Bearer $TOKEN" $BACKEND_URL/api/endpoint
+curl -H "Origin: https://malicious-site.com" \
+     $(terraform output -raw backend_url)/api/teams
 ```
 
-Both use the same IAM mechanism (`roles/run.invoker`) but different invocation methods.
+The request will succeed from curl (curl doesn't enforce CORS), but browsers will block it.
+
+### Verify Database is Private
+
+Try to connect to database from local machine (should fail):
+
+```bash
+# This should fail because database has no public IP
+psql -h $(terraform output -raw db_private_ip) -U compliance_user -d compliance_db
+# Expected: Connection timeout or refused
+```
+
+### Verify Secrets Are Not Exposed
+
+Check that secrets are not visible in frontend:
+
+```bash
+curl $(terraform output -raw frontend_url)/static/config.js
+# Should NOT contain any secrets, only backend URL
+```
+
+## Next Steps
+
+After successful testing:
+
+1. **Set up monitoring** - Configure Cloud Monitoring alerts
+2. **Enable Cloud CDN** - For faster static file delivery (optional)
+3. **Configure custom domain** - Map custom domain to frontend
+4. **Set up CI/CD** - Automate deployments
+5. **Enable Cloud Armor** - Add DDoS protection (optional)
+
+## Useful Commands Reference
+
+```bash
+# Get all outputs
+terraform output
+
+# Tail frontend logs
+gcloud run services logs tail cp-frontend-dev --region=europe-north1
+
+# Tail backend logs
+gcloud run services logs tail cp-backend-dev --region=europe-north1
+
+# SSH to bastion
+terraform output bastion_ssh_command | sh
+
+# List all Cloud Run services
+gcloud run services list --region=europe-north1
+
+# List all secrets
+gcloud secrets list
+
+# Check Cloud SQL status
+gcloud sql instances describe cp-db-dev
+```

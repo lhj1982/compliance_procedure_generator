@@ -1,14 +1,8 @@
-# Bastion Host for secure access to private resources
-# Using a small, cost-optimized instance
+# ============================================================================
+# Bastion Host - Secure access to private resources
+# ============================================================================
 
-# Service account for bastion
-resource "google_service_account" "bastion" {
-  account_id   = "${var.app_name}-bastion-${var.environment}"
-  display_name = "Bastion Host Service Account"
-  project      = var.project_id
-}
-
-# Bastion host instance
+# Bastion compute instance
 resource "google_compute_instance" "bastion" {
   name         = "${var.app_name}-bastion-${var.environment}"
   machine_type = "e2-micro" # Cheapest machine type
@@ -27,10 +21,7 @@ resource "google_compute_instance" "bastion" {
 
   network_interface {
     subnetwork = var.public_subnet_name
-
     # No external IP - use IAP for SSH access (more secure and free)
-    # If you need external IP, uncomment below
-    # access_config {}
   }
 
   service_account {
@@ -38,7 +29,6 @@ resource "google_compute_instance" "bastion" {
     scopes = ["cloud-platform"]
   }
 
-  # Allow stopping for maintenance
   allow_stopping_for_update = true
 
   # Enable OS Login for better security
@@ -46,28 +36,31 @@ resource "google_compute_instance" "bastion" {
     enable-oslogin = "TRUE"
   }
 
-  # Startup script to install necessary tools
+  # Install necessary tools on startup
   metadata_startup_script = <<-EOF
     #!/bin/bash
     apt-get update
     apt-get install -y postgresql-client curl wget
 
-    # Install gcloud SQL proxy
+    # Install Cloud SQL proxy
     wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O /usr/local/bin/cloud_sql_proxy
     chmod +x /usr/local/bin/cloud_sql_proxy
   EOF
 
   scheduling {
     # Use preemptible for dev to save costs (will be terminated within 24h)
-    preemptible         = var.environment != "prod"
-    automatic_restart   = var.environment == "prod"
-    # on_host_maintenance = "MIGRATE"
+    preemptible       = var.environment != "prod"
+    automatic_restart = var.environment == "prod"
   }
 }
 
-# Firewall rule for bastion SSH access via IAP
-resource "google_compute_firewall" "bastion_ssh" {
-  name    = "${var.app_name}-bastion-ssh-${var.environment}"
+# ============================================================================
+# Bastion Firewall Rules
+# ============================================================================
+
+# Allow SSH access via IAP
+resource "google_compute_firewall" "bastion_iap_ssh" {
+  name    = "${var.app_name}-bastion-iap-ssh-${var.environment}"
   network = var.vpc_name
   project = var.project_id
 
@@ -76,28 +69,16 @@ resource "google_compute_firewall" "bastion_ssh" {
     ports    = ["22"]
   }
 
-  # IAP's IP range
+  # IAP's IP range for SSH tunneling
   source_ranges = ["35.235.240.0/20"]
   target_tags   = ["bastion"]
 }
 
-# Optional: Firewall rule for bastion to access from specific IPs
-# Uncomment if you want direct SSH access (not recommended, use IAP instead)
-# resource "google_compute_firewall" "bastion_external_ssh" {
-#   name    = "${var.app_name}-bastion-external-ssh-${var.environment}"
-#   network = var.vpc_name
-#   project = var.project_id
-#
-#   allow {
-#     protocol = "tcp"
-#     ports    = ["22"]
-#   }
-#
-#   source_ranges = var.bastion_allowed_ips
-#   target_tags   = ["bastion"]
-# }
+# ============================================================================
+# Bastion IAM
+# ============================================================================
 
-# IAM role for Cloud SQL Client access from bastion
+# Allow bastion to connect to Cloud SQL
 resource "google_project_iam_member" "bastion_sql_client" {
   project = var.project_id
   role    = "roles/cloudsql.client"

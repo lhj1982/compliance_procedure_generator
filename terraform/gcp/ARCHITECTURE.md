@@ -58,17 +58,18 @@ Internet
   - No reverse proxy, no backend URL in environment
   - JavaScript includes backend URL in config.js
 
-- **Backend**: Internal GCP-only Cloud Run service
-  - Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY` (blocks public internet)
+- **Backend**: Public Cloud Run service with CORS protection
+  - Ingress: `INGRESS_TRAFFIC_ALL` (allows browser requests)
   - CORS: Only accepts requests from `*.run.app` domains
   - Browser calls backend API directly with full URL
 
 **Why This Works**:
-- Backend is NOT publicly accessible (ingress restriction)
-- But requests FROM Cloud Run frontend domain are allowed
+- Backend is publicly addressable (has HTTPS URL)
+- But CORS only allows requests from `*.run.app` origins
 - Browser makes requests with `Origin: https://frontend-xxx.run.app`
-- Backend CORS validates origin is from `*.run.app`
-- This restricts backend to GCP environment only
+- Backend CORS validates origin is from `*.run.app` domain
+- Any request from non-Cloud Run domain is rejected by CORS
+- This effectively restricts backend to GCP Cloud Run environment
 
 ### ✅ Two-Layer Security
 
@@ -79,12 +80,12 @@ Internet
 - No environment variables, no secrets
 - No proxy configuration needed
 
-**Backend (Internal GCP Only)**:
-- Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY`
+**Backend (Public with CORS Protection)**:
+- Ingress: `INGRESS_TRAFFIC_ALL` (allows browser requests)
 - CORS: Only `*.run.app` origins accepted
-- IAM: `allUsers` can invoke (but ingress blocks public internet)
+- IAM: `allUsers` can invoke
 - Handles all sensitive operations (DB, secrets, storage)
-- Only accessible from GCP Cloud Run services
+- CORS protection restricts to Cloud Run frontend domains only
 
 ### ✅ VPC Connectivity
 
@@ -143,10 +144,10 @@ Internet
 - Memory: 512Mi
 - CPU: 1
 - Scaling: 0-3 instances (0-10 in prod)
-- Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY` (blocks public internet)
-- IAM: `allUsers` can invoke (but ingress restricts to GCP only)
+- Ingress: `INGRESS_TRAFFIC_ALL` (allows browser requests)
+- IAM: `allUsers` can invoke
 - Service Account: `{app-name}-backend-{env}`
-- CORS: Only `*.run.app` origins allowed
+- CORS: Only `*.run.app` origins allowed (enforced in application code)
 
 **Environment Variables**:
 - `APP_SECRETS`: JSON from Secret Manager (`{"llm_api_key": "...", "db_password": "..."}`)
@@ -239,12 +240,13 @@ gcloud compute ssh bastion --tunnel-through-iap
 
 ### Public Access
 - ✅ Frontend Cloud Run service (HTTPS only, static files)
+- ✅ Backend Cloud Run service (HTTPS only, CORS-protected API)
 
-### Internal GCP Only Access
-- ✅ Backend Cloud Run service
-  - Ingress: `INGRESS_TRAFFIC_INTERNAL_ONLY` (blocks public internet)
-  - Only accessible from GCP Cloud Run services (*.run.app origins)
-  - CORS configured to reject non-Cloud Run origins
+### CORS-Protected Access
+- ✅ Backend API endpoints
+  - Publicly addressable but CORS-protected
+  - Only accepts requests from `*.run.app` origins
+  - Rejects requests from any other domain
   - Browser requests work because they come from frontend Cloud Run domain
 
 ### Private (VPC-only) Access
@@ -256,10 +258,13 @@ gcloud compute ssh bastion --tunnel-through-iap
 - ✅ Cloud Storage (backend service account only)
 
 ### How Backend Security Works
-1. **Ingress Restriction**: `INGRESS_TRAFFIC_INTERNAL_ONLY` blocks direct internet access
+1. **Public Endpoint**: Backend has public HTTPS URL (required for browser requests)
 2. **CORS Validation**: Only accepts requests with `Origin: https://*.run.app`
-3. **Result**: Backend only responds to requests from GCP Cloud Run services
-4. **User Flow**: Browser → Frontend (*.run.app) → Backend (validates origin) → Response
+3. **Result**: Backend only responds to browser requests from Cloud Run frontend
+4. **User Flow**: Browser loads Frontend (*.run.app) → JavaScript calls Backend → CORS validates origin → Response
+5. **Protection**: Requests from non-Cloud Run domains are blocked by CORS
+
+**Important**: The backend is technically "public" but CORS protection ensures only the Cloud Run frontend can successfully make API calls to it.
 
 ## Traffic Flow
 
